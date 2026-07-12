@@ -140,7 +140,7 @@ const AppContent: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-teal-500/30 relative">
       <div className="fixed inset-0 pointer-events-none" style={{
-        background: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(176,28,30,0.15), transparent), radial-gradient(ellipse 50% 40% at 80% 80%, rgba(96,165,250,0.08), transparent)'
+        background: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(176,28,30,0.05), transparent), radial-gradient(ellipse 50% 40% at 80% 80%, rgba(96,165,250,0.03), transparent)'
       }} />
       <NavigationBar />
 

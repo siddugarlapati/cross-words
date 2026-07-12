@@ -3,11 +3,13 @@ import { CrosswordGenerationResult } from "./types";
 import { generateLayout } from "./layoutGenerator";
 
 const apiKey = import.meta.env.VITE_GEMINI_API_KEY ?? "";
-if (!apiKey) {
-  throw new Error("VITE_GEMINI_API_KEY is not set in environment variables");
-}
 
-const genAI = new GoogleGenerativeAI(apiKey);
+function getGenAI() {
+  if (!apiKey) {
+    throw new Error("VITE_GEMINI_API_KEY is not set. Get a free key at https://aistudio.google.com/apikey");
+  }
+  return new GoogleGenerativeAI(apiKey);
+}
 
 // Shared safety settings to prevent empty responses on complex documents
 const safetySettings = [
@@ -272,7 +274,7 @@ export const generateCrossword = async (
       });
     }
 
-    const stage1Model = genAI.getGenerativeModel({
+    const stage1Model = getGenAI().getGenerativeModel({
       model: modelId,
       safetySettings,
       generationConfig: {
