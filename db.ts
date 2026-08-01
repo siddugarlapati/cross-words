@@ -36,8 +36,10 @@ export const db = {
         subject: assessment.subject,
         faculty_id: user?.id ?? null,
         faculty_name: assessment.faculty_name,
+        faculty_email: assessment.faculty_email || user?.email || null,
         deadline: assessment.deadline || null,
-        class_section: assessment.class_section
+        class_section: assessment.class_section,
+        start_time: assessment.start_time || null
       });
       if (aError) throw aError;
 
@@ -105,9 +107,11 @@ export const db = {
           title: assessment.title,
           subject: assessment.subject,
           faculty_name: assessment.faculty_name,
+          faculty_email: assessment.faculty_email ?? '',
           deadline: assessment.deadline ?? '',
           class_section: assessment.class_section ?? '',
-          created_at: assessment.created_at
+          created_at: assessment.created_at,
+          start_time: assessment.start_time
         },
         questions: questions || []
       };
@@ -126,13 +130,15 @@ export const db = {
   async getAssessmentsByFaculty(facultyName: string): Promise<Assessment[]> {
     if (supabase) {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return [];
 
-      const { data, error } = await supabase
-        .from('assessments')
-        .select('*')
-        .eq('faculty_id', user.id)
-        .order('created_at', { ascending: false });
+      let query = supabase.from('assessments').select('*');
+      if (user?.id && user?.email) {
+        query = query.or(`faculty_id.eq.${user.id},faculty_email.eq.${user.email},faculty_name.ilike.%${facultyName || ''}%`);
+      } else if (facultyName) {
+        query = query.ilike('faculty_name', `%${facultyName}%`);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching assessments:', error);
@@ -186,10 +192,14 @@ export const db = {
         assessment_id: code,
         roll_number: rollNo,
         student_name: response.student_name,
+        student_email: response.student_email,
         score: response.score,
         total_questions: response.total_questions,
         time_taken: response.time_taken
       });
+
+      if (error) throw error;
+      return id;
 
       if (error) throw error;
       return id;
@@ -261,6 +271,76 @@ export const db = {
         r => !(r.assessment_id.toUpperCase() === code && r.roll_number.trim().toUpperCase() === rollNo)
       );
       saveToStorage(STORAGE_KEYS.RESPONSES, filtered);
+    }
+  },
+
+  async hasStudentSubmitted(assessmentId: string, rollNumber: string): Promise<boolean> {
+    const code = assessmentId.toUpperCase();
+    const rollNo = rollNumber.trim().toUpperCase();
+
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('responses')
+        .select('id')
+        .eq('assessment_id', code)
+        .eq('roll_number', rollNo)
+        .maybeSingle();
+
+      if (error) return false;
+      return !!data;
+    } else {
+      const responses = getFromStorage<Response>(STORAGE_KEYS.RESPONSES);
+      return responses.some(r => r.assessment_id.toUpperCase() === code && r.roll_number.trim().toUpperCase() === rollNo);
+    }
+  },
+
+  async getAllAssessments(): Promise<Assessment[]> {
+    if (supabase) {
+      const { data, error } = await supabase.from('assessments').select('*').order('created_at', { ascending: false });
+      if (error) return [];
+      return data || [];
+    } else {
+      return getFromStorage<Assessment>(STORAGE_KEYS.ASSESSMENTS);
+    }
+  },
+
+  async getAllResponses(): Promise<Response[]> {
+    if (supabase) {
+      const { data, error } = await supabase.from('responses').select('*').order('submitted_at', { ascending: false });
+      if (error) return [];
+      return data || [];
+    } else {
+      return getFromStorage<Response>(STORAGE_KEYS.RESPONSES);
+    }
+  },
+
+  async getAllProfiles(): Promise<any[]> {
+    if (supabase) {
+      const { data, error } = await supabase.from('profiles').select('*');
+      if (error) return [];
+      return data || [];
+    } else {
+      return [
+        { id: '1', full_name: 'Professor Anurag', email: 'faculty@anurag.edu.in', role: 'faculty' },
+        { id: '2', full_name: 'Super Admin', email: 'admin@anurag.edu.in', role: 'admin' }
+      ];
+    }
+  },
+
+  async getStudentResponses(email: string): Promise<Response[]> {
+    const target = email.trim().toLowerCase();
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('responses')
+        .select('*')
+        .ilike('student_email', target)
+        .order('submitted_at', { ascending: false });
+
+      if (error) return [];
+      return data || [];
+    } else {
+      const responses = getFromStorage<Response>(STORAGE_KEYS.RESPONSES);
+      return responses.filter(r => (r.student_email || '').toLowerCase() === target);
     }
   }
 };

@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, SchemaType, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, HarmCategory, HarmBlockThreshold, Part } from "@google/generative-ai";
 import { CrosswordGenerationResult } from "./types";
 import { generateLayout } from "./layoutGenerator";
 
@@ -235,8 +235,8 @@ export const generateCrossword = async (
       throw new Error("DEMO mode active");
     }
 
-    // Use gemini-2.5-flash for maximum stability and speed
-    const modelId = "gemini-2.5-flash";
+    // Use gemini-1.5-flash for maximum stability and speed
+    const modelId = "gemini-1.5-flash";
 
     // ---- STAGE 1: Technical Term Extraction (RAG) ----
     const stage1Prompt = `

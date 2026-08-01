@@ -16,9 +16,11 @@ export interface Assessment {
   title: string;
   subject: string;
   faculty_name: string;
+  faculty_email?: string;
   deadline: string;
   created_at: string;
   class_section: string;
+  start_time?: string;
 }
 
 export interface Response {
@@ -26,6 +28,7 @@ export interface Response {
   assessment_id: string;
   roll_number: string;
   student_name?: string;
+  student_email?: string;
   answers_json: Record<string, string>;
   score: number;
   total_questions: number;

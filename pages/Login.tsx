@@ -4,7 +4,7 @@ import { useAuth } from '../authContext';
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  const { signInWithEmail, isLocalMode } = useAuth();
+  const { signInWithEmail, isSignupHidden } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -16,66 +16,62 @@ const Login: React.FC = () => {
     setLoading(true);
     try {
       await signInWithEmail(email, password);
-      navigate('/dashboard');
+
+      // Check role or email for navigation
+      const lowerEmail = email.toLowerCase().trim();
+      if (lowerEmail === 'admin@anurag.edu.in') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to sign in.');
+      if (err.status === 429 || String(err.message || '').includes('429') || String(err.message || '').toLowerCase().includes('rate limit')) {
+        setError('⚠️ Security rate limit reached (429: Too Many Requests). Please wait 60 seconds before trying again.');
+      } else {
+        setError(err.message || 'Failed to sign in.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex items-center justify-center min-h-[75vh] py-12 relative overflow-hidden">
-      {/* Background elements */}
-      <div className="absolute top-1/4 -left-20 w-96 h-96 bg-purple-600/10 rounded-full blur-[128px] pointer-events-none" />
-      <div className="absolute bottom-0 -right-20 w-96 h-96 bg-teal-500/10 rounded-full blur-[128px] pointer-events-none" />
-
-      <div className="max-w-md w-full glass border border-slate-800 p-8 md:p-10 rounded-[2.5rem] shadow-2xl relative z-10 animate-slide-up">
-        {/* Local mode banner */}
-        {isLocalMode ? (
-          <div className="mb-6 bg-purple-500/10 border border-purple-500/30 text-purple-300 text-xs font-bold py-2.5 px-4 rounded-xl text-center flex items-center justify-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse"></span>
-            Running in Local Storage Mode (Mock Login)
+    <div className="flex items-center justify-center min-h-[75vh] py-8 relative overflow-hidden">
+      <div className="max-w-md w-full bg-white border border-slate-200 shadow-xl p-6 md:p-8 rounded-3xl relative z-10 animate-slide-up">
+        
+        <div className="text-center mb-6">
+          <div className="inline-block p-3 bg-slate-50 rounded-2xl border border-slate-100 mb-3">
+            <img src="/anurag-logo.png" alt="Anurag Logo" className="h-8 object-contain" />
           </div>
-        ) : (
-          <div className="mb-6 bg-teal-500/10 border border-teal-500/30 text-teal-300 text-xs font-bold py-2.5 px-4 rounded-xl text-center flex items-center justify-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
-            Connected to Cloud Database (Supabase)
-          </div>
-        )}
-
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-black text-white">Faculty Sign In</h2>
-          <p className="text-slate-400 text-sm mt-2">Access your assessments and students\' analytics.</p>
+          <h2 className="text-2xl font-black text-[#002147]">Portal Sign In</h2>
+          <p className="text-slate-500 text-xs mt-1">Access your Anurag University assessment portal.</p>
         </div>
 
         {error && (
-          <div className="mb-6 bg-red-500/10 border border-red-500/30 text-red-300 text-xs font-bold py-3 px-4 rounded-xl text-center">
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 text-xs font-bold py-3 px-4 rounded-xl text-center">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-2">
-            <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Email Address</label>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Email</label>
             <input
               required
               type="email"
-              className="w-full bg-slate-950/50 border border-slate-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-2xl px-5 py-4 outline-none transition-all text-slate-100 placeholder:text-slate-700"
-              placeholder="prof.wright@university.edu"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none text-sm text-slate-800 focus:border-[#b01c1e] transition-colors"
+              placeholder="e.g. professor@anurag.edu.in or admin@anurag.edu.in"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
           </div>
 
-          <div className="space-y-2">
-            <div className="flex justify-between items-center px-1">
-              <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Password</label>
-            </div>
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Password</label>
             <input
               required
               type="password"
-              className="w-full bg-slate-950/50 border border-slate-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-2xl px-5 py-4 outline-none transition-all text-slate-100 placeholder:text-slate-700"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none text-sm text-slate-800 focus:border-[#b01c1e] transition-colors"
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -85,22 +81,22 @@ const Login: React.FC = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full mt-4 bg-gradient-to-r from-purple-600 to-blue-600 hover:brightness-110 active:scale-[0.98] text-white font-black py-4.5 rounded-2xl transition-all shadow-xl shadow-purple-500/20 flex items-center justify-center gap-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full mt-2 bg-[#b01c1e] hover:bg-[#851415] text-white font-bold py-3.5 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 text-sm disabled:opacity-50 cursor-pointer"
           >
             {loading ? (
-              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
             ) : (
-              'Sign In'
+              'Sign In to Dashboard'
             )}
           </button>
         </form>
 
-        <div className="mt-8 text-center text-sm text-slate-500">
-          Don\'t have an account?{' '}
-          <Link to="/signup" className="text-purple-400 hover:text-purple-300 font-bold transition-colors">
-            Create account
-          </Link>
-        </div>
+        {!isSignupHidden && (
+          <p className="text-center text-xs text-slate-600 mt-4">
+            Don't have an account?{' '}
+            <Link to="/signup" className="text-[#b01c1e] font-bold hover:underline">Create Account</Link>
+          </p>
+        )}
       </div>
     </div>
   );

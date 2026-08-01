@@ -1,177 +1,118 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: 'Inter', sans-serif;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 
-  /* Inverted Slate Scale for Light Mode */
-  --color-slate-950: #ffffff; /* Pure White for cards, inputs, boxes */
-  --color-slate-900: #f8fafc; /* Soft off-white body bg */
-  --color-slate-850: #f1f5f9; /* Light divider / border */
-  --color-slate-800: #e2e8f0; /* Default border */
-  --color-slate-700: #cbd5e1; /* Secondary border */
-  --color-slate-600: #94a3b8; /* Muted text */
-  --color-slate-500: #64748b; /* Secondary text */
-  --color-slate-400: #475569; /* Intermediate text */
-  --color-slate-300: #334155; /* Body text */
-  --color-slate-200: #1e293b; /* Dark text */
-  --color-slate-100: #0f172a; /* Header text */
-  --color-slate-50: #020617;  /* Darkest highlights */
-
-  /* Theme Branding Accent Colors */
-  --color-brand-primary: #b01c1e;
-  --color-brand-secondary: #262f4b;
-  --color-brand-dark: #f8fafc;
-
-  --color-purple-50: #fef2f2;
-  --color-purple-100: #fee2e2;
-  --color-purple-200: #fca5a5;
-  --color-purple-300: #f87171;
-  --color-purple-400: #ef4444;
-  --color-purple-500: #b01c1e;
-  --color-purple-600: #9e1b1b;
-  --color-purple-700: #851415;
-  --color-purple-800: #630c0e;
-  --color-purple-900: #450507;
-  --color-purple-950: #1f0102;
-
-  --color-violet-400: #f87171;
-  --color-violet-500: #b01c1e;
-  --color-violet-600: #8e1012;
-
-  --color-teal-50: #eff6ff;
-  --color-teal-100: #dbeafe;
-  --color-teal-200: #bfdbfe;
-  --color-teal-300: #93c5fd;
-  --color-teal-400: #60a5fa;
-  --color-teal-500: #262f4b;
-  --color-teal-600: #1e2840;
-  --color-teal-700: #141c2e;
-  --color-teal-850: #bfdbfe;
-  --color-teal-900: #dbeafe;
-  --color-teal-950: #eff6ff;
+  /* Anurag University Light Theme */
+  --color-au-navy: #002147;
+  --color-au-red: #b01c1e;
+  --color-au-red-dark: #851415;
+  --color-au-gold: #d4af37;
+  --color-au-teal: #0d9488;
 }
 
 body {
-  @apply bg-slate-900 text-slate-300 antialiased selection:bg-purple-500/10;
+  font-family: var(--font-sans);
+  background-color: #f8f9fc;
+  color: #1e293b;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 h1, h2, h3, h4, h5, h6 {
-  color: var(--color-slate-100) !important;
+  font-family: var(--font-display);
 }
 
-/* Glass Morphism — Light Theme with visible borders */
-.glass {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 2px solid rgba(176, 28, 30, 0.15);
-  box-shadow: 
-    0 8px 32px 0 rgba(38, 47, 75, 0.08),
-    0 0 0 1px rgba(176, 28, 30, 0.05),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  @apply text-slate-300;
-}
-
+/* Light Card Styles */
 .glass-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 2px solid rgba(96, 165, 250, 0.25);
-  box-shadow: 
-    0 8px 32px 0 rgba(38, 47, 75, 0.08),
-    0 0 0 1px rgba(96, 165, 250, 0.06),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9);
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  @apply text-slate-300;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .glass-card:hover {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(176, 28, 30, 0.4);
-  box-shadow: 
-    0 16px 48px 0 rgba(38, 47, 75, 0.12),
-    0 0 30px 0 rgba(176, 28, 30, 0.12),
-    0 0 60px 0 rgba(176, 28, 30, 0.04),
-    0 0 0 1px rgba(176, 28, 30, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
-  transform: translateY(-3px);
+  border-color: rgba(176, 28, 30, 0.35);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.08),
+    0 0 0 1px rgba(176, 28, 30, 0.12);
+  transform: translateY(-2px);
 }
 
-.text-gradient {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-teal-400;
+.glass-input {
+  background: #ffffff;
+  border: 1.5px solid #cbd5e1;
+  color: #1e293b;
+  transition: all 0.2s ease;
+  border-radius: 12px;
 }
 
-.text-gradient {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-teal-400;
+.glass-input:focus {
+  outline: none;
+  border-color: #b01c1e;
+  box-shadow: 0 0 0 3px rgba(176, 28, 30, 0.15);
+  background: #ffffff;
+}
+
+.glass-input::placeholder {
+  color: #94a3b8;
 }
 
 /* Animations */
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-@keyframes pulse-glow {
-  0%,
-  100% {
-    box-shadow: 0 0 15px rgba(176, 28, 30, 0.05);
-  }
-
-  50% {
-    box-shadow: 0 0 25px rgba(176, 28, 30, 0.12);
-  }
+@keyframes floatSlow {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.6s ease-out forwards;
+  animation: fadeIn 0.4s ease-out forwards;
 }
 
 .animate-slide-up {
-  animation: slideUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-.animate-delay-100 {
-  animation-delay: 100ms;
+.animate-float {
+  animation: floatSlow 6s ease-in-out infinite;
 }
 
-.animate-delay-200 {
-  animation-delay: 200ms;
-}
-
-.animate-delay-300 {
-  animation-delay: 300ms;
-}
-
-/* Custom Scrollbar */
+/* Custom Scrollbar - Light */
 ::-webkit-scrollbar {
-  width: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-slate-900;
+  background: #f1f5f9;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-700 rounded-full;
+  background: #cbd5e1;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-600;
+  background: #b01c1e;
 }
