@@ -45,11 +45,11 @@ export const emailService = {
 
     const percentage = Math.round((params.score / params.totalQuestions) * 100);
     const badgeColor = percentage >= 80 ? '#10b981' : percentage >= 50 ? '#f59e0b' : '#ef4444';
-    const feedbackMsg = percentage >= 80 
+    const feedbackMsg = percentage >= 80
       ? 'Outstanding performance! You have demonstrated exceptional mastery of this curriculum topic.'
       : percentage >= 50
-      ? 'Good effort! You have a solid grasp of the concepts, with room for minor revision.'
-      : 'Keep practicing! Review the course material and attempt future crosswords to strengthen your understanding.';
+        ? 'Good effort! You have a solid grasp of the concepts, with room for minor revision.'
+        : 'Keep practicing! Review the course material and attempt future crosswords to strengthen your understanding.';
 
     const htmlContent = `
       <!DOCTYPE html>
