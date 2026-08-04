@@ -143,89 +143,109 @@ function generateLocalCrossword(
     validWords = generated.filter(item => item.word.length >= 3 && item.word.length <= 15);
   }
 
-  // Topic specific dictionaries for educational subjects
-  const scienceWords = [
-    { word: "GRAVITY", clue: "Force that attracts bodies toward the center of the earth" },
-    { word: "ENERGY", clue: "The quantitative property that must be transferred to an object" },
-    { word: "ATOM", clue: "The basic unit of a chemical element" },
-    { word: "ELECTRON", clue: "A subatomic particle with a negative electric charge" },
-    { word: "FORCE", clue: "Strength or energy as an attribute of physical action" },
-    { word: "EVOLUTION", clue: "The process by which organisms develop over generations" },
-    { word: "GENETICS", clue: "The study of heredity and inherited characteristics" },
-    { word: "PHOTOSYNTHESIS", clue: "Process by which green plants synthesize nutrients using sunlight" },
-    { word: "CELL", clue: "The basic structural and functional unit of life" },
-    { word: "MOLECULE", clue: "A group of atoms bonded together" }
+  // Rich domain dictionaries for educational subjects
+  const csAndTechWords = [
+    { word: "ALGORITHM", clue: "A step-by-step procedure or set of rules for solving a problem" },
+    { word: "DATABASE", clue: "An organized collection of structured data stored electronically" },
+    { word: "COMPILER", clue: "Software that translates high-level code into executable machine instructions" },
+    { word: "NETWORK", clue: "A collection of interconnected computing systems exchanging data" },
+    { word: "VARIABLE", clue: "A named storage location holding a value that can change during execution" },
+    { word: "INTERFACE", clue: "A shared boundary defining methods for component communication" },
+    { word: "SECURITY", clue: "Protection of digital systems, data, and networks from unauthorized access" },
+    { word: "RECURSION", clue: "A method where a function calls itself to solve smaller sub-problems" },
+    { word: "POINTER", clue: "A variable storing the memory location address of another value" },
+    { word: "THREAD", clue: "The smallest unit of execution within an operating system process" },
+    { word: "KERNEL", clue: "The core component of an operating system managing system resources" },
+    { word: "OBJECT", clue: "An instance of a class encapsulating data properties and behavior methods" },
+    { word: "INHERITANCE", clue: "Mechanism where a new class adopts characteristics from an existing parent class" },
+    { word: "ENCAPSULATION", clue: "Bundling data and operations into a single unit while restricting direct access" },
+    { word: "POLYMORPHISM", clue: "Ability of different objects to respond to the same interface or method" },
+    { word: "TRAVERSAL", clue: "Visiting each element or node in a data structure systematically" },
+    { word: "ITERATION", clue: "Repeated execution of a block of statements until a condition is met" },
+    { word: "PROTOCOL", clue: "Set of rules governing the exchange of data between devices" },
+    { word: "PIPELINE", clue: "A chain of processing elements where the output of one is input to next" },
+    { word: "ENCRYPTION", clue: "Encoding information so only authorized parties can access it" },
+    { word: "FRAMEWORK", clue: "Reusable software platform providing foundation for building applications" },
+    { word: "REPOSITORY", clue: "Centralized location for storing and managing code or data assets" },
+    { word: "MIDDLEWARE", clue: "Software layer providing services to applications beyond OS capabilities" },
+    { word: "PARALLEL", clue: "Executing multiple computations simultaneously across processing cores" },
+    { word: "DEPENDENCY", clue: "A reliance of one software module on another to function properly" }
   ];
 
-  const computerWords = [
-    { word: "ALGORITHM", clue: "A step-by-step procedure for solving a problem" },
-    { word: "DATABASE", clue: "A structured collection of data stored electronically" },
-    { word: "COMPILER", clue: "Program that translates source code into machine language" },
-    { word: "NETWORK", clue: "A group of interconnected computer systems" },
-    { word: "VARIABLE", clue: "A storage location paired with an associated symbolic name" },
-    { word: "INTERFACE", clue: "A shared boundary across which two components exchange information" },
-    { word: "INTERNET", clue: "A global network providing communication and information" },
-    { word: "FUNCTION", clue: "A block of organized, reusable code used to perform an action" },
-    { word: "SECURITY", clue: "Protection of computer systems from unauthorized access" },
-    { word: "HARDWARE", clue: "The physical components of a computer system" },
-    { word: "RECURSION", clue: "A function calling itself to break down a problem" },
-    { word: "POINTER", clue: "A variable that holds the memory address of another value" },
-    { word: "THREAD", clue: "The smallest sequence of programmed instructions managed by OS" },
-    { word: "KERNEL", clue: "The core component of an operating system" },
-    { word: "OBJECT", clue: "An instance of a class containing data and code" }
+  const dataStructuresWords = [
+    { word: "BINARY", clue: "A tree structure where each node has at most two children" },
+    { word: "TREE", clue: "A hierarchical non-linear data structure consisting of connected nodes" },
+    { word: "GRAPH", clue: "A structure consisting of a set of vertices connected by edges" },
+    { word: "VERTEX", clue: "A fundamental node or point in a graph network" },
+    { word: "EDGE", clue: "A connection or link between two vertices in a graph" },
+    { word: "STACK", clue: "A Last-In First-Out (LIFO) linear data structure" },
+    { word: "QUEUE", clue: "A First-In First-Out (FIFO) linear data structure" },
+    { word: "ARRAY", clue: "A contiguous sequence of elements indexed by numerical positions" },
+    { word: "NODE", clue: "A basic building block containing data and links to other nodes" },
+    { word: "PARENT", clue: "A node that has one or more child nodes beneath it in a tree" },
+    { word: "CHILD", clue: "A node connected directly below a parent node in a tree" },
+    { word: "LEAF", clue: "A terminal node in a tree structure that has no children" },
+    { word: "DEPTH", clue: "The number of edges from the root node to a specific node" },
+    { word: "HEIGHT", clue: "The length of the longest path from a node to a leaf" },
+    { word: "SEARCH", clue: "Finding the position of a specific target key within a structure" },
+    { word: "HASH", clue: "Converting a key into a numeric index using a mapping function" },
+    { word: "HEAP", clue: "A specialized tree-based structure satisfying the heap property" },
+    { word: "TRAVERSAL", clue: "Visiting every node in a tree or graph systematically" },
+    { word: "DIJKSTRA", clue: "Algorithm for finding the shortest path between nodes in a graph" },
+    { word: "MATRIX", clue: "A two-dimensional grid array representing graph adjacency or data" },
+    { word: "POINTER", clue: "Reference link pointing to the memory address of the next node" },
+    { word: "BALANCE", clue: "Keeping a tree height minimal to maintain logarithmic operation times" }
+  ];
+
+  const scienceWords = [
+    { word: "GRAVITY", clue: "Universal force that attracts physical bodies toward one another" },
+    { word: "ENERGY", clue: "The capacity to perform physical work or transfer heat" },
+    { word: "ATOM", clue: "The fundamental unit of a chemical element" },
+    { word: "ELECTRON", clue: "A subatomic particle carrying a negative electrical charge" },
+    { word: "FORCE", clue: "An interaction that changes or tends to change an object's motion" },
+    { word: "EVOLUTION", clue: "Process by which biological populations adapt across generations" },
+    { word: "GENETICS", clue: "The study of heredity and biological variation in organisms" },
+    { word: "PHOTOSYNTHESIS", clue: "Chemical process converting light energy into cellular food" },
+    { word: "CELL", clue: "The structural and functional basic unit of biological organisms" },
+    { word: "MOLECULE", clue: "Group of two or more chemical atoms held together by covalent bonds" }
   ];
 
   const mathWords = [
-    { word: "EQUATION", clue: "A statement that the values of two mathematical expressions are equal" },
-    { word: "CALCULUS", clue: "Branch of mathematics that studies continuous change" },
+    { word: "EQUATION", clue: "Mathematical statement asserting equality between two expressions" },
+    { word: "CALCULUS", clue: "Branch of mathematics studying rates of continuous change" },
     { word: "MATRIX", clue: "A rectangular array of numbers arranged in rows and columns" },
-    { word: "VECTOR", clue: "A quantity having direction as well as magnitude" },
-    { word: "THEOREM", clue: "A general proposition not self-evident but proved by reasoning" },
-    { word: "FRACTION", clue: "A numerical quantity that is not a whole number" },
-    { word: "GEOMETRY", clue: "Branch of mathematics concerned with properties of space" },
-    { word: "ALGEBRA", clue: "Branch of mathematics dealing with symbols and rules for manipulating them" },
-    { word: "POLYNOMIAL", clue: "An expression consisting of variables and coefficients" },
-    { word: "PROBABILITY", clue: "The likelihood or chance of an event occurring" }
+    { word: "VECTOR", clue: "A mathematical entity possessing both magnitude and direction" },
+    { word: "THEOREM", clue: "A logical statement proved based on established axioms" },
+    { word: "FRACTION", clue: "A numerical representation of a part of a whole quantity" },
+    { word: "GEOMETRY", clue: "Branch of mathematics analyzing space, shapes, and positions" },
+    { word: "ALGEBRA", clue: "Branch of mathematics operating on symbols and relational rules" },
+    { word: "POLYNOMIAL", clue: "Expression involving sums of terms with non-negative power variables" },
+    { word: "PROBABILITY", clue: "Measure of the likelihood that a given event will take place" }
   ];
 
-  const historyWords = [
-    { word: "REVOLUTION", clue: "A forcible overthrow of a government or social order" },
-    { word: "EMPIRE", clue: "An extensive group of states under a single supreme authority" },
-    { word: "CONSTITUTION", clue: "A body of fundamental principles according to which a state is governed" },
-    { word: "TREATY", clue: "A formally concluded and ratified agreement between countries" },
-    { word: "DEMOCRACY", clue: "System of government by the whole population or eligible members" },
-    { word: "COLONY", clue: "A country or area under full or partial political control of another" },
-    { word: "MONARCHY", clue: "A form of government with a monarch at the head" },
-    { word: "HERITAGE", clue: "Valued objects and qualities such as historic buildings passed down generations" }
+  const genericEduWords = [
+    { word: "FUNDAMENTALS", clue: "The central core principles establishing a domain of study" },
+    { word: "ARCHITECTURE", clue: "The structural layout and conceptual organization of a system" },
+    { word: "METHODOLOGY", clue: "A contextual framework of methods and procedures applied to a subject" },
+    { word: "IMPLEMENTATION", clue: "The execution or practical realization of an idea or design" },
+    { word: "OPTIMIZATION", clue: "Modifying a process or system to achieve maximum efficiency" },
+    { word: "EVALUATION", clue: "Systematic determination of merit, performance, or value" },
+    { word: "SPECIFICATION", clue: "Detailed documentation describing required criteria and functionality" },
+    { word: "INTEGRATION", clue: "Combining sub-components into a unified operational system" }
   ];
 
-  const defaultWords = [
-    { word: "THEORY", clue: "A system of ideas explaining a subject" },
-    { word: "CONCEPT", clue: "An abstract idea or fundamental notion" },
-    { word: "ANALYSIS", clue: "Detailed examination of elements or structure" },
-    { word: "METHOD", clue: "A particular procedure for accomplishing something" },
-    { word: "PROCESS", clue: "A series of actions taken to achieve an end" },
-    { word: "SYSTEM", clue: "A set of connected things forming a complex whole" },
-    { word: "FUNCTION", clue: "An activity or purpose natural to a thing" },
-    { word: "STRUCTURE", clue: "The arrangement of parts in a complex entity" },
-    { word: "PRINCIPLE", clue: "A fundamental truth serving as foundation" },
-    { word: "RESEARCH", clue: "Systematic investigation into materials and sources" },
-    { word: "LEARNING", clue: "Acquisition of knowledge or skills through study" },
-    { word: "KNOWLEDGE", clue: "Facts and information acquired through experience" },
-    { word: "ACADEMIC", clue: "Relating to education and scholarship" },
-    { word: "LOGIC", clue: "Reasoning conducted according to strict principles" }
-  ];
-
-  // Select dictionary based on topic
-  let selectedDictionary = defaultWords;
-  if (cleanTopic.match(/computer|code|programming|software|data|algorithm|operating|network|web|tech|system/)) {
-    selectedDictionary = computerWords;
-  } else if (cleanTopic.match(/science|physic|chem|biology|cell|atom|genet/)) {
+  // Select primary dictionary based on topic subject keywords
+  let selectedDictionary = csAndTechWords;
+  if (cleanTopic.match(/tree|graph|binary|data structure|stack|queue|array|node|linked|heap|hash|dijkstra/)) {
+    selectedDictionary = dataStructuresWords;
+  } else if (cleanTopic.match(/computer|code|program|software|data|algorithm|operating|network|web|tech|system|dev|java|python|cpp|c|engineering|cs/)) {
+    selectedDictionary = csAndTechWords;
+  } else if (cleanTopic.match(/science|physic|chem|biology|cell|atom|genet|botany|zoo/)) {
     selectedDictionary = scienceWords;
-  } else if (cleanTopic.match(/math|algebra|calculus|stat|matrix|geo/)) {
+  } else if (cleanTopic.match(/math|algebra|calculus|stat|matrix|geo|prob/)) {
     selectedDictionary = mathWords;
-  } else if (cleanTopic.match(/history|gov|civic|politi|social|war/)) {
-    selectedDictionary = historyWords;
+  } else {
+    selectedDictionary = [...csAndTechWords, ...genericEduWords];
   }
 
   // Extract terms directly from the topic title itself
@@ -241,16 +261,26 @@ function generateLocalCrossword(
     });
   }
 
+  // Fill remaining questions using selected dictionary
+  let dictIdx = 0;
   while (validWords.length < numQuestions) {
-    const item = selectedDictionary[validWords.length % selectedDictionary.length];
+    const item = selectedDictionary[dictIdx % selectedDictionary.length];
     if (!validWords.some(w => w.word === item.word)) {
       validWords.push(item);
-    } else {
-      const altWord = `KEY${validWords.length + 1}TERM`;
-      validWords.push({
-        word: altWord.slice(0, 10),
-        clue: `Important concept associated with ${topic || 'this subject'}`
-      });
+    }
+    dictIdx++;
+    if (dictIdx > selectedDictionary.length * 3 && validWords.length < numQuestions) {
+      // Backup fallback if dictionary exhausted
+      const fallbackItem = genericEduWords[validWords.length % genericEduWords.length];
+      if (!validWords.some(w => w.word === fallbackItem.word)) {
+        validWords.push(fallbackItem);
+      } else {
+        const altWord = `KEY${validWords.length + 1}TERM`;
+        validWords.push({
+          word: altWord.slice(0, 10),
+          clue: `Important concept associated with ${topic || 'this subject'}`
+        });
+      }
     }
   }
 
