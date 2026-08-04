@@ -19,6 +19,8 @@ const FacultyCreate: React.FC = () => {
   const [fileName, setFileName] = useState<string>('');
   const [isManualMode, setIsManualMode] = useState(false);
 
+  const defaultDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16);
+
   const [formData, setFormData] = useState({
     facultyName: '',
     subject: '',
@@ -28,7 +30,7 @@ const FacultyCreate: React.FC = () => {
     topic: '',
     content: '',
     questionsCount: 10,
-    deadline: '',
+    deadline: defaultDeadline,
     startTime: '',
     isScheduled: false
   });
@@ -88,19 +90,22 @@ const FacultyCreate: React.FC = () => {
     setStep('generating');
     setLoading(true);
     try {
-      const topicStr = formData.topic.trim();
-      const subjectStr = formData.subject.trim();
-      const titleStr = formData.title.trim();
+      let topicStr = formData.topic.trim();
+      let subjectStr = formData.subject.trim();
+      let titleStr = formData.title.trim();
 
-      let effectiveTopic = 'General Knowledge';
-      if (topicStr && subjectStr) {
+      if (!subjectStr && topicStr) {
+        subjectStr = topicStr;
+        setFormData(prev => ({ ...prev, subject: topicStr }));
+      }
+      if (!titleStr && topicStr) {
+        titleStr = `${topicStr} Assessment`;
+        setFormData(prev => ({ ...prev, title: `${topicStr} Assessment` }));
+      }
+
+      let effectiveTopic = topicStr || subjectStr || titleStr || 'General Knowledge';
+      if (topicStr && subjectStr && topicStr !== subjectStr) {
         effectiveTopic = `${subjectStr}: ${topicStr}`;
-      } else if (topicStr) {
-        effectiveTopic = topicStr;
-      } else if (subjectStr) {
-        effectiveTopic = subjectStr;
-      } else if (titleStr) {
-        effectiveTopic = titleStr;
       }
 
       const aiResult = await generateCrossword(
@@ -493,7 +498,6 @@ const FacultyCreate: React.FC = () => {
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Faculty Name</label>
             <input
-              required
               name="facultyName"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none text-sm text-slate-800 focus:border-[#b01c1e] focus:bg-white"
               placeholder="e.g. Dr. Ramesh Kumar"
@@ -504,7 +508,6 @@ const FacultyCreate: React.FC = () => {
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Subject / Course</label>
             <input
-              required
               name="subject"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none text-sm text-slate-800 focus:border-[#b01c1e] focus:bg-white"
               placeholder="e.g. Data Structures & Algorithms"
@@ -533,7 +536,6 @@ const FacultyCreate: React.FC = () => {
           <div className="space-y-1">
             <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Class Section</label>
             <input
-              required
               name="classSection"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none text-sm text-slate-800 focus:border-[#b01c1e] focus:bg-white"
               placeholder="e.g. Section A, CSE-1, etc."
@@ -547,7 +549,6 @@ const FacultyCreate: React.FC = () => {
           <div className="space-y-1 md:col-span-2">
             <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Assessment Title</label>
             <input
-              required
               name="title"
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none text-sm text-slate-800 focus:border-[#b01c1e] focus:bg-white"
               placeholder="e.g. Mid-Term Review: Binary Trees & Graphs"
@@ -676,7 +677,6 @@ const FacultyCreate: React.FC = () => {
               <div>
                 <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Start Date & Time</label>
                 <input
-                  required={formData.isScheduled}
                   type="datetime-local"
                   name="startTime"
                   className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none text-xs text-slate-800"
@@ -688,7 +688,6 @@ const FacultyCreate: React.FC = () => {
             <div>
               <label className="text-[10px] font-bold text-slate-600 uppercase tracking-wider block mb-1">Submission Deadline</label>
               <input
-                required
                 type="datetime-local"
                 name="deadline"
                 className="w-full bg-white border border-slate-200 rounded-xl px-3 py-2 outline-none text-xs text-slate-800"
