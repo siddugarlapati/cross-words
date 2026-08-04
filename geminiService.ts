@@ -187,141 +187,115 @@ export const generateCrossword = async (
   numQuestions: number,
   fileData?: FileData
 ): Promise<CrosswordGenerationResult> => {
-  try {
-    const hasValidKey = Boolean(apiKey && apiKey.startsWith("AIzaSy"));
-    if (!hasValidKey) {
-      console.warn("⚠️ VITE_GEMINI_API_KEY is not configured or invalid key format. Using instant dynamic topic generator.");
-      return generateLocalCrossword(topic, content, numQuestions);
-    }
+  const cleanTopic = (topic || "General Knowledge").trim();
 
-    const modelId = "gemini-1.5-flash";
-
-    // ---- STAGE 1: Technical Term Extraction (RAG) or Topic Generation ----
-    const hasStudyMaterial = Boolean(content && content.trim().length > 0) || Boolean(fileData);
-
-    const stage1Prompt = hasStudyMaterial
-      ? `
-      You are an expert curriculum designer and educator.
-      Extract exactly ${Math.min(25, numQuestions * 2)} key technical terms and concepts from the provided study materials below.
-      
-      Requirements for each extracted term:
-      1. MUST be a single word (no spaces, hyphens, or special characters).
-      2. Length MUST be between 3 and 12 letters long.
-      3. MUST be significant to the topic: "${topic}".
-      4. Each term must have a concise, clear definition clue suitable for a student crossword puzzle (max 120 chars).
-      
-      Format the response strictly as a JSON object matching this schema:
-      {
-        "terms": [
-          { "word": "ALGORITHM", "definition": "A step-by-step procedure for solving a problem." }
-        ]
-      }
-    `
-      : `
-      You are an expert curriculum designer and educator.
-      Generate exactly ${Math.min(25, numQuestions * 2)} key technical terms, core concepts, and accurate definition clues for the educational topic: "${topic || 'General Knowledge'}".
-      
-      Requirements for each generated term:
-      1. MUST be a single word (no spaces, hyphens, or special characters).
-      2. Length MUST be between 3 and 12 letters long.
-      3. MUST be directly relevant to the core concepts of "${topic || 'General Knowledge'}".
-      4. Each term must have a clear, informative definition clue suitable for a student crossword puzzle (max 120 chars).
-      
-      Format the response strictly as a JSON object matching this schema:
-      {
-        "terms": [
-          { "word": "TERM", "definition": "A clear definition clue for this topic." }
-        ]
-      }
-    `;
-
-    const stage1Parts: (string | Part)[] = [stage1Prompt];
-
-    if (content) {
-      stage1Parts.push(`Study Materials:\n${content}`);
-    }
-
-    if (fileData) {
-      const base64Parts = fileData.data.split(',');
-      const actualData = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
-      stage1Parts.push({
-        inlineData: {
-          data: actualData,
-          mimeType: fileData.mimeType
-        }
-      });
-    }
-
-    const stage1Model = getGenAI().getGenerativeModel({
-      model: modelId,
-      safetySettings,
-      generationConfig: {
-        responseMimeType: "application/json",
-      },
-    });
-
-    console.log("Stage 1: Generating terms for topic/content:", topic);
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("API Timeout: Generation took longer than 6 seconds.")), 6000)
-    );
-    const stage1Result = await Promise.race([
-      stage1Model.generateContent(stage1Parts),
-      timeoutPromise
-    ]) as any;
-
-    if (!stage1Result.response?.candidates?.[0]) {
-      throw new Error("Stage 1 failed: No response candidates found. Content may have been blocked by safety filters.");
-    }
-
-    let termsText = stage1Result.response.text().trim();
-    console.log("Raw Gemini Response Snippet:", termsText.substring(0, 200));
-
-    // Strip markdown code fences if present
-    termsText = termsText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
-
-    let parsedData: any = {};
-    try {
-      parsedData = JSON.parse(termsText);
-    } catch (parseErr) {
-      // Fallback regex to extract JSON object or array
-      const jsonMatch = termsText.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-      if (jsonMatch) {
-        parsedData = JSON.parse(jsonMatch[0]);
-      } else {
-        throw parseErr;
-      }
-    }
-
-    const terms = Array.isArray(parsedData) ? parsedData : (parsedData.terms || parsedData.questions || []);
-    console.log(`Stage 1: Successfully generated ${terms.length} terms.`);
-
-    // ---- STAGE 2: Client-side Crossword Layout Generation ----
-    console.log("Stage 2: Generating crossword layout...");
-    
-    const wordItems = terms.map((t: any) => ({
-      word: ((t.word || t.term || "").toUpperCase().replace(/[^A-Z]/g, "")),
-      clue: t.definition || t.clue || t.description || "",
-    })).filter((t: any) => t.word.length >= 3 && t.word.length <= 12 && t.clue.length > 0);
-
-    if (wordItems.length === 0) {
-      throw new Error("No valid terms were generated for this topic.");
-    }
-
-    const placedQuestions = generateLayout(wordItems, numQuestions);
-
-    if (placedQuestions.length === 0) {
-      throw new Error("Could not place generated words into grid. Please try again.");
-    }
-
-    return {
-      title: topic || "Educational Assessment",
-      subject: topic || "General Knowledge",
-      questions: placedQuestions,
-    };
-
-  } catch (err) {
-    console.warn("⚠️ Gemini API generation failed or returned invalid format. Falling back to local topic generator:", err);
-    return generateLocalCrossword(topic, content, numQuestions);
+  if (!apiKey || apiKey === "DEMO") {
+    console.warn("⚠️ No VITE_GEMINI_API_KEY set. Running local topic generator.");
+    return generateLocalCrossword(cleanTopic, content, numQuestions);
   }
+
+  // Models in preference order: gemini-2.5-flash -> gemini-2.0-flash -> gemini-1.5-flash
+  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+
+  const hasStudyMaterial = Boolean(content && content.trim().length > 0) || Boolean(fileData);
+
+  const promptText = hasStudyMaterial
+    ? `You are an expert educator. Extract exactly ${Math.min(25, numQuestions * 2)} key technical terms and definitions from the study material below for topic "${cleanTopic}". Requirements: Each term MUST be a single word (3-12 letters A-Z). Clues must be clear definitions (max 100 chars). Return ONLY JSON array: [{"word": "ALGORITHM", "definition": "A step by step procedure."}]`
+    : `You are an expert educator. Generate exactly ${Math.min(25, numQuestions * 2)} key technical terms and definition clues for topic "${cleanTopic}". Requirements: Each term MUST be a single word (3-12 letters A-Z). Clues must be clear definitions (max 100 chars). Return ONLY JSON array: [{"word": "TERM", "definition": "Clear concise definition clue."}]`;
+
+  const payload: any = {
+    contents: [
+      {
+        parts: [
+          { text: promptText }
+        ]
+      }
+    ],
+    generationConfig: {
+      responseMimeType: "application/json"
+    }
+  };
+
+  if (content) {
+    payload.contents[0].parts.push({ text: `Study Material Text:\n${content.substring(0, 15000)}` });
+  }
+
+  if (fileData) {
+    const base64Parts = fileData.data.split(',');
+    const actualData = base64Parts.length > 1 ? base64Parts[1] : base64Parts[0];
+    payload.contents[0].parts.push({
+      inlineData: {
+        data: actualData,
+        mimeType: fileData.mimeType
+      }
+    });
+  }
+
+  for (const modelName of candidateModels) {
+    try {
+      console.log(`🤖 Requesting Gemini API model: ${modelName}...`);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 8000);
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        }
+      );
+      clearTimeout(timer);
+
+      if (!response.ok) {
+        const errBody = await response.text();
+        console.warn(`Gemini Model ${modelName} returned HTTP ${response.status}:`, errBody);
+        continue;
+      }
+
+      const resJson = await response.json();
+      const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!rawText) continue;
+
+      const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+
+      let parsed: any = {};
+      try {
+        parsed = JSON.parse(cleanText);
+      } catch (pErr) {
+        const jsonMatch = cleanText.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0]);
+        }
+      }
+
+      const termsArray = Array.isArray(parsed) ? parsed : (parsed.terms || parsed.questions || []);
+
+      const wordItems = termsArray
+        .map((t: any) => ({
+          word: ((t.word || t.term || "").toUpperCase().replace(/[^A-Z]/g, "")),
+          clue: (t.definition || t.clue || t.description || "").trim()
+        }))
+        .filter((t: any) => t.word.length >= 3 && t.word.length <= 12 && t.clue.length > 0);
+
+      if (wordItems.length > 0) {
+        const placed = generateLayout(wordItems, numQuestions);
+        if (placed.length > 0) {
+          console.log(`✅ Gemini API model ${modelName} successfully generated ${placed.length} crossword terms!`);
+          return {
+            title: cleanTopic,
+            subject: cleanTopic,
+            questions: placed
+          };
+        }
+      }
+    } catch (apiErr: any) {
+      console.warn(`Gemini API call to ${modelName} failed or timed out:`, apiErr.message || apiErr);
+    }
+  }
+
+  console.warn("⚠️ Gemini API fallback to local generator.");
+  return generateLocalCrossword(cleanTopic, content, numQuestions);
 };
 
