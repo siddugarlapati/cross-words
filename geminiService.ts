@@ -258,19 +258,30 @@ function generateLocalCrossword(
 
   const candidateWords = Array.from(wordMap.entries()).map(([word, clue]) => ({ word, clue }));
 
+  // Genuine academic and technical fallback terms (no synthetic placeholders)
+  const genuineFallbackTerms = [
+    { word: "ARCHITECTURE", clue: `Conceptual layout and structural organization of ${cleanTopic}` },
+    { word: "INFRASTRUCTURE", clue: `Underlying framework and foundational setup for ${cleanTopic}` },
+    { word: "IMPLEMENTATION", clue: `The practical execution or technical realization of ${cleanTopic}` },
+    { word: "SPECIFICATION", clue: `Explicit set of requirements and standards governing ${cleanTopic}` },
+    { word: "FRAMEWORK", clue: `Reusable conceptual platform supporting building blocks of ${cleanTopic}` },
+    { word: "OPTIMIZATION", clue: `Refining processes and performance within ${cleanTopic}` },
+    { word: "INTEGRATION", clue: `Combining sub-modules into a unified system in ${cleanTopic}` },
+    { word: "PROTOCOL", clue: `Standardized rule set governing interactions in ${cleanTopic}` },
+    { word: "SECURITY", clue: `Protection measures and access controls applied to ${cleanTopic}` },
+    { word: "EXECUTION", clue: `Carrying out operations or instructions within ${cleanTopic}` },
+    { word: "VIRTUALIZATION", clue: `Abstracting physical computing resources in ${cleanTopic}` },
+    { word: "DEPENDENCY", clue: `Inter-reliance between components in ${cleanTopic}` },
+    { word: "REPOSITORY", clue: `Central storage location for assets and code in ${cleanTopic}` },
+    { word: "ANALYSIS", clue: `Systematic evaluation of components and behavior in ${cleanTopic}` }
+  ];
+
   if (candidateWords.length < numQuestions) {
-    const rawTopicAlpha = topicUpper.replace(/[^A-Z]/g, '');
-    const prefix = rawTopicAlpha.length >= 3 ? rawTopicAlpha.slice(0, 7) : "CONCEPT";
-    let counter = 1;
-    while (candidateWords.length < numQuestions && counter < 100) {
-      const synWord = `${prefix}${counter}`.toUpperCase();
-      if (!candidateWords.some(c => c.word === synWord)) {
-        candidateWords.push({
-          word: synWord,
-          clue: `Core concept #${counter} directly defining topic "${cleanTopic}"`
-        });
+    for (const fb of genuineFallbackTerms) {
+      if (candidateWords.length >= numQuestions) break;
+      if (!candidateWords.some(c => c.word === fb.word)) {
+        candidateWords.push(fb);
       }
-      counter++;
     }
   }
 

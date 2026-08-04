@@ -623,8 +623,8 @@ const FacultyCreate: React.FC = () => {
             <span className="text-[10px] text-slate-600 italic">PDF, DOCX, PPTX</span>
           </div>
           <div
-            onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-2xl p-6 transition-all cursor-pointer flex flex-col items-center justify-center text-center ${
+            onClick={() => { if (!loading) fileInputRef.current?.click(); }}
+            className={`border-2 border-dashed rounded-2xl p-6 transition-all ${loading ? 'pointer-events-none opacity-50' : ''} flex flex-col items-center justify-center text-center ${
               fileName ? 'border-teal-600 bg-teal-50' : 'border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100'
             }`}
           >
@@ -699,17 +699,35 @@ const FacultyCreate: React.FC = () => {
           <button
             type="button"
             onClick={() => { setIsManualMode(true); handleGenerate({ preventDefault: () => { } } as React.FormEvent); }}
-            className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold py-3.5 rounded-xl text-sm transition-all cursor-pointer"
+            disabled={loading}
+            className={`flex-1 ${loading ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-bold py-3.5 rounded-xl text-sm transition-all cursor-pointer'}`}
           >
-            Manual Entry
+            {loading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+                Processing...
+              </>
+            ) : (
+              'Manual Entry'
+            )}
           </button>
           <button
             type="submit"
             onClick={() => setIsManualMode(false)}
-            className="flex-[2] bg-[#b01c1e] hover:bg-[#851415] text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+            disabled={loading}
+            className={`flex-[2] ${loading ? 'bg-[#b01c1e]/50 hover:bg-[#b01c1e]/50' : 'bg-[#b01c1e] hover:bg-[#851415]'} text-white font-bold py-3.5 rounded-xl text-sm transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer ${loading ? 'cursor-not-allowed' : ''}`}
           >
-            Generate AI Crossword
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+            {loading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path></svg>
+                Generating...
+              </>
+            ) : (
+              <>
+                Generate AI Crossword
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              </>
+            )}
           </button>
         </div>
       </form>
