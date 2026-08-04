@@ -56,22 +56,30 @@ const FacultyCreate: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     setFileName(file.name);
-
+    setLoading(true);
     try {
       const text = await parseFile(file);
       setFormData(prev => ({ ...prev, content: text }));
     } catch (err) {
       console.error("Local file parsing exception:", err);
     }
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      const base64String = (reader.result as string).split(',')[1];
-      setSelectedFile({ data: base64String, mimeType: file.type || 'application/pdf' });
-    };
-    reader.readAsDataURL(file);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64String = (reader.result as string).split(',')[1];
+          resolve(base64String);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      setSelectedFile({ data: base64, mimeType: file.type || 'application/pdf' });
+    } catch (err) {
+      console.error("Failed to read file as base64:", err);
+    } finally {
+      setLoading(false);
+    }
   };
-
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isManualMode) {
@@ -94,19 +102,8 @@ const FacultyCreate: React.FC = () => {
       let subjectStr = formData.subject.trim();
       let titleStr = formData.title.trim();
 
-      if (!subjectStr && topicStr) {
-        subjectStr = topicStr;
-        setFormData(prev => ({ ...prev, subject: topicStr }));
-      }
-      if (!titleStr && topicStr) {
-        titleStr = `${topicStr} Assessment`;
-        setFormData(prev => ({ ...prev, title: `${topicStr} Assessment` }));
-      }
-
-      let effectiveTopic = topicStr || subjectStr || titleStr || 'General Knowledge';
-      if (topicStr && subjectStr && topicStr !== subjectStr) {
-        effectiveTopic = `${subjectStr}: ${topicStr}`;
-      }
+      // If topic is provided, it is the sole focus topic for generation
+      const effectiveTopic = topicStr || subjectStr || titleStr || 'General Knowledge';
 
       const aiResult = await generateCrossword(
         effectiveTopic,
