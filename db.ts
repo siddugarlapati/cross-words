@@ -18,6 +18,30 @@ const saveToStorage = <T,>(key: string, data: T[]) => {
   localStorage.setItem(key, JSON.stringify(data));
 };
 
+const saveLocally = (
+  assessment: Omit<Assessment, 'id' | 'created_at'>,
+  questions: Omit<Question, 'id' | 'assessment_id'>[],
+  id: string
+) => {
+  const assessments = getFromStorage<Assessment>(STORAGE_KEYS.ASSESSMENTS);
+  const newAssessment: Assessment = {
+    ...assessment,
+    id,
+    created_at: new Date().toISOString(),
+  };
+  assessments.push(newAssessment);
+  saveToStorage(STORAGE_KEYS.ASSESSMENTS, assessments);
+
+  const allQuestions = getFromStorage<Question>(STORAGE_KEYS.QUESTIONS);
+  const newQuestions: Question[] = questions.map((q) => ({
+    ...q,
+    id: Math.random().toString(36).substring(2, 11),
+    assessment_id: id,
+  }));
+  allQuestions.push(...newQuestions);
+  saveToStorage(STORAGE_KEYS.QUESTIONS, allQuestions);
+};
+
 export const db = {
   async createAssessment(
     assessment: Omit<Assessment, 'id' | 'created_at'>,
@@ -26,166 +50,158 @@ export const db = {
     const id = Math.random().toString(36).substring(2, 8).toUpperCase(); // 6 character code
 
     if (supabase) {
-      // 1. Get logged-in user id
-      const { data: { user } } = await supabase.auth.getUser();
+      try {
+        // 1. Get logged-in user id
+        const { data: { user } } = await supabase.auth.getUser();
 
-      // 2. Insert into Supabase assessments
-      const { error: aError } = await supabase.from('assessments').insert({
-        id,
-        title: assessment.title,
-        subject: assessment.subject,
-        faculty_id: user?.id ?? null,
-        faculty_name: assessment.faculty_name,
-        faculty_email: assessment.faculty_email || user?.email || null,
-        deadline: assessment.deadline || null,
-        class_section: assessment.class_section,
-        start_time: assessment.start_time || null
-      });
-      if (aError) throw aError;
+        // 2. Insert into Supabase assessments
+        const { error: aError } = await supabase.from('assessments').insert({
+          id,
+          title: assessment.title,
+          subject: assessment.subject,
+          faculty_id: user?.id ?? null,
+          faculty_name: assessment.faculty_name,
+          faculty_email: assessment.faculty_email || user?.email || null,
+          deadline: assessment.deadline || null,
+          class_section: assessment.class_section,
+          start_time: assessment.start_time || null
+        });
+        if (aError) throw aError;
 
-      // 3. Insert questions in bulk
-      const questionsData = questions.map(q => ({
-        assessment_id: id,
-        word: q.word.toUpperCase(),
-        clue: q.clue,
-        direction: q.direction,
-        row: q.row,
-        col: q.col
-      }));
-      const { error: qError } = await supabase.from('questions').insert(questionsData);
-      if (qError) throw qError;
+        // 3. Insert questions in bulk
+        const questionsData = questions.map(q => ({
+          assessment_id: id,
+          word: q.word.toUpperCase(),
+          clue: q.clue,
+          direction: q.direction,
+          row: q.row,
+          col: q.col
+        }));
+        const { error: qError } = await supabase.from('questions').insert(questionsData);
+        if (qError) throw qError;
 
-      return id;
-    } else {
-      // LocalStorage Fallback
-      const assessments = getFromStorage<Assessment>(STORAGE_KEYS.ASSESSMENTS);
-      const newAssessment: Assessment = {
-        ...assessment,
-        id,
-        created_at: new Date().toISOString(),
-      };
-      assessments.push(newAssessment);
-      saveToStorage(STORAGE_KEYS.ASSESSMENTS, assessments);
-
-      const allQuestions = getFromStorage<Question>(STORAGE_KEYS.QUESTIONS);
-      const newQuestions: Question[] = questions.map((q) => ({
-        ...q,
-        id: Math.random().toString(36).substring(2, 11),
-        assessment_id: id,
-      }));
-      allQuestions.push(...newQuestions);
-      saveToStorage(STORAGE_KEYS.QUESTIONS, allQuestions);
-
-      return id;
+        return id;
+      } catch (err) {
+        // ponytail: Supabase not configured/tables missing -> save locally so nothing is lost
+        console.warn('Supabase save failed, falling back to local storage:', err);
+      }
     }
+
+    saveLocally(assessment, questions, id);
+    return id;
   },
 
   async getAssessment(id: string): Promise<{ assessment: Assessment; questions: Question[] } | null> {
     const code = id.toUpperCase();
 
     if (supabase) {
-      // Query assessment
-      const { data: assessment, error: aError } = await supabase
-        .from('assessments')
-        .select('*')
-        .eq('id', code)
-        .maybeSingle();
+      try {
+        // Query assessment
+        const { data: assessment, error: aError } = await supabase
+          .from('assessments')
+          .select('*')
+          .eq('id', code)
+          .maybeSingle();
 
-      if (aError || !assessment) return null;
+        if (aError || !assessment) throw aError || new Error('not found');
 
-      // Query questions
-      const { data: questions, error: qError } = await supabase
-        .from('questions')
-        .select('*')
-        .eq('assessment_id', code);
+        // Query questions
+        const { data: questions, error: qError } = await supabase
+          .from('questions')
+          .select('*')
+          .eq('assessment_id', code);
 
-      if (qError) return null;
+        if (qError) throw qError;
 
-      return {
-        assessment: {
-          id: assessment.id,
-          title: assessment.title,
-          subject: assessment.subject,
-          faculty_name: assessment.faculty_name,
-          faculty_email: assessment.faculty_email ?? '',
-          deadline: assessment.deadline ?? '',
-          class_section: assessment.class_section ?? '',
-          created_at: assessment.created_at,
-          start_time: assessment.start_time
-        },
-        questions: questions || []
-      };
-    } else {
-      // LocalStorage Fallback
-      const assessments = getFromStorage<Assessment>(STORAGE_KEYS.ASSESSMENTS);
-      const assessment = assessments.find((a) => a.id.toUpperCase() === code);
-      if (!assessment) return null;
-
-      const allQuestions = getFromStorage<Question>(STORAGE_KEYS.QUESTIONS);
-      const questions = allQuestions.filter((q) => q.assessment_id.toUpperCase() === code);
-      return { assessment, questions };
+        return {
+          assessment: {
+            id: assessment.id,
+            title: assessment.title,
+            subject: assessment.subject,
+            faculty_name: assessment.faculty_name,
+            faculty_email: assessment.faculty_email ?? '',
+            deadline: assessment.deadline ?? '',
+            class_section: assessment.class_section ?? '',
+            created_at: assessment.created_at,
+            start_time: assessment.start_time
+          },
+          questions: questions || []
+        };
+      } catch (err) {
+        console.warn('Supabase read failed, falling back to local storage:', err);
+      }
     }
+
+    // LocalStorage Fallback
+    const assessments = getFromStorage<Assessment>(STORAGE_KEYS.ASSESSMENTS);
+    const assessment = assessments.find((a) => a.id.toUpperCase() === code);
+    if (!assessment) return null;
+
+    const allQuestions = getFromStorage<Question>(STORAGE_KEYS.QUESTIONS);
+    const questions = allQuestions.filter((q) => q.assessment_id.toUpperCase() === code);
+    return { assessment, questions };
   },
 
   async getAssessmentsByFaculty(facultyName: string): Promise<Assessment[]> {
     if (supabase) {
-      const { data: { user } } = await supabase.auth.getUser();
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
 
-      const cleanName = (facultyName || '').trim();
-      let data: any[] | null = null;
-      let error: any = null;
+        const cleanName = (facultyName || '').trim();
+        let data: any[] | null = null;
+        let error: any = null;
 
-      if (user?.id) {
-        // First try matching user ID or email
-        const filterStr = user.email 
-          ? (cleanName ? `faculty_id.eq.${user.id},faculty_email.eq.${user.email},faculty_name.ilike.%${cleanName}%` : `faculty_id.eq.${user.id},faculty_email.eq.${user.email}`)
-          : (cleanName ? `faculty_id.eq.${user.id},faculty_name.ilike.%${cleanName}%` : `faculty_id.eq.${user.id}`);
-        
-        const res = await supabase.from('assessments').select('*').or(filterStr).order('created_at', { ascending: false });
-        data = res.data;
-        error = res.error;
+        if (user?.id) {
+          // First try matching user ID or email
+          const filterStr = user.email 
+            ? (cleanName ? `faculty_id.eq.${user.id},faculty_email.eq.${user.email},faculty_name.ilike.%${cleanName}%` : `faculty_id.eq.${user.id},faculty_email.eq.${user.email}`)
+            : (cleanName ? `faculty_id.eq.${user.id},faculty_name.ilike.%${cleanName}%` : `faculty_id.eq.${user.id}`);
+          
+          const res = await supabase.from('assessments').select('*').or(filterStr).order('created_at', { ascending: false });
+          data = res.data;
+          error = res.error;
 
-        // Fallback query if OR filter fails
-        if (error) {
-          console.warn('Primary query failed, running fallback assessment fetch:', error);
-          const fbRes = await supabase.from('assessments').select('*').eq('faculty_id', user.id).order('created_at', { ascending: false });
-          data = fbRes.data;
-          error = fbRes.error;
-        }
-      } else if (cleanName.length > 0) {
-        const res = await supabase.from('assessments').select('*').ilike('faculty_name', `%${cleanName}%`).order('created_at', { ascending: false });
-        data = res.data;
-        error = res.error;
-      } else {
-        return [];
-      }
-
-      if (error) {
-        console.error('Error fetching assessments:', error);
-        return [];
-      }
-
-      return data || [];
-    } else {
-      // LocalStorage Fallback
-      const mockUserStr = localStorage.getItem(STORAGE_KEYS.MOCK_LOGGED_USER);
-      let filterName = facultyName.toLowerCase();
-      
-      if (mockUserStr) {
-        const profileStr = localStorage.getItem('autocross_mock_profile');
-        if (profileStr) {
-          const prof = JSON.parse(profileStr);
-          if (prof && prof.full_name) {
-            filterName = prof.full_name.toLowerCase();
+          // Fallback query if OR filter fails
+          if (error) {
+            console.warn('Primary query failed, running fallback assessment fetch:', error);
+            const fbRes = await supabase.from('assessments').select('*').eq('faculty_id', user.id).order('created_at', { ascending: false });
+            data = fbRes.data;
+            error = fbRes.error;
           }
+        } else if (cleanName.length > 0) {
+          const res = await supabase.from('assessments').select('*').ilike('faculty_name', `%${cleanName}%`).order('created_at', { ascending: false });
+          data = res.data;
+          error = res.error;
+        } else {
+          throw new Error('no filter');
+        }
+
+        if (error) throw error;
+
+        return data || [];
+      } catch (err) {
+        console.warn('Supabase fetch failed, falling back to local storage:', err);
+      }
+    }
+
+    // LocalStorage Fallback
+    const mockUserStr = localStorage.getItem(STORAGE_KEYS.MOCK_LOGGED_USER);
+    let filterName = facultyName.toLowerCase();
+    
+    if (mockUserStr) {
+      const profileStr = localStorage.getItem('autocross_mock_profile');
+      if (profileStr) {
+        const prof = JSON.parse(profileStr);
+        if (prof && prof.full_name) {
+          filterName = prof.full_name.toLowerCase();
         }
       }
-
-      const assessments = getFromStorage<Assessment>(STORAGE_KEYS.ASSESSMENTS);
-      return assessments.filter(
-        a => a.faculty_name.toLowerCase() === filterName || a.faculty_name.toLowerCase() === facultyName.toLowerCase()
-      ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     }
+
+    const assessments = getFromStorage<Assessment>(STORAGE_KEYS.ASSESSMENTS);
+    return assessments.filter(
+      a => a.faculty_name.toLowerCase() === filterName || a.faculty_name.toLowerCase() === facultyName.toLowerCase()
+    ).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   },
 
   async submitResponse(response: Omit<Response, 'id' | 'submitted_at'>): Promise<string> {
@@ -193,81 +209,86 @@ export const db = {
     const rollNo = response.roll_number.trim().toUpperCase();
 
     if (supabase) {
-      // Check if roll number already submitted
-      const { data: existing, error: checkError } = await supabase
-        .from('responses')
-        .select('id')
-        .eq('assessment_id', code)
-        .eq('roll_number', rollNo)
-        .maybeSingle();
+      try {
+        // Check if roll number already submitted
+        const { data: existing, error: checkError } = await supabase
+          .from('responses')
+          .select('id')
+          .eq('assessment_id', code)
+          .eq('roll_number', rollNo)
+          .maybeSingle();
 
-      if (checkError) throw checkError;
-      if (existing) {
-        throw new Error('You have already submitted this assessment.');
+        if (checkError) throw checkError;
+        if (existing) {
+          throw new Error('You have already submitted this assessment.');
+        }
+
+        const id = Math.random().toString(36).substring(2, 11);
+        const { error } = await supabase.from('responses').insert({
+          assessment_id: code,
+          roll_number: rollNo,
+          student_name: response.student_name,
+          student_email: response.student_email || null,
+          answers_json: response.answers_json || null,
+          score: response.score,
+          total_questions: response.total_questions,
+          time_taken: response.time_taken
+        });
+
+        if (error) throw error;
+        return id;
+      } catch (err) {
+        console.warn('Supabase response save failed, falling back to local storage:', err);
       }
-
-      const id = Math.random().toString(36).substring(2, 11);
-      const { error } = await supabase.from('responses').insert({
-        assessment_id: code,
-        roll_number: rollNo,
-        student_name: response.student_name,
-        student_email: response.student_email || null,
-        answers_json: response.answers_json || null,
-        score: response.score,
-        total_questions: response.total_questions,
-        time_taken: response.time_taken
-      });
-
-      if (error) throw error;
-      return id;
-    } else {
-      // LocalStorage Fallback
-      const responses = getFromStorage<Response>(STORAGE_KEYS.RESPONSES);
-      
-      const existing = responses.find(
-        r => r.assessment_id.toUpperCase() === code && r.roll_number.trim().toUpperCase() === rollNo
-      );
-      if (existing) {
-        throw new Error('You have already submitted this assessment.');
-      }
-
-      const id = Math.random().toString(36).substring(2, 11);
-      const newResponse: Response = {
-        ...response,
-        assessment_id: code,
-        roll_number: rollNo,
-        id,
-        submitted_at: new Date().toISOString(),
-      };
-      responses.push(newResponse);
-      saveToStorage(STORAGE_KEYS.RESPONSES, responses);
-      return id;
     }
+
+    // LocalStorage Fallback
+    const responses = getFromStorage<Response>(STORAGE_KEYS.RESPONSES);
+    
+    const existing = responses.find(
+      r => r.assessment_id.toUpperCase() === code && r.roll_number.trim().toUpperCase() === rollNo
+    );
+    if (existing) {
+      throw new Error('You have already submitted this assessment.');
+    }
+
+    const id = Math.random().toString(36).substring(2, 11);
+    const newResponse: Response = {
+      ...response,
+      assessment_id: code,
+      roll_number: rollNo,
+      id,
+      submitted_at: new Date().toISOString(),
+    };
+    responses.push(newResponse);
+    saveToStorage(STORAGE_KEYS.RESPONSES, responses);
+    return id;
   },
 
   async getResponses(assessmentId: string): Promise<Response[]> {
     const code = assessmentId.toUpperCase();
 
     if (supabase) {
-      const { data, error } = await supabase
-        .from('responses')
-        .select('*')
-        .eq('assessment_id', code)
-        .order('submitted_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('responses')
+          .select('*')
+          .eq('assessment_id', code)
+          .order('submitted_at', { ascending: false });
 
-      if (error) {
-        console.error('Error fetching responses:', error);
-        return [];
+        if (error) throw error;
+
+        return data || [];
+      } catch (err) {
+        console.warn('Supabase responses fetch failed, falling back to local storage:', err);
       }
-
-      return data || [];
-    } else {
-      // LocalStorage Fallback
-      const responses = getFromStorage<Response>(STORAGE_KEYS.RESPONSES);
-      return responses
-        .filter((r) => r.assessment_id.toUpperCase() === code)
-        .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
     }
+
+    // LocalStorage Fallback
+    const responses = getFromStorage<Response>(STORAGE_KEYS.RESPONSES);
+    return responses
+      .filter((r) => r.assessment_id.toUpperCase() === code)
+      .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime());
   },
 
   async allowReattempt(assessmentId: string, rollNumber: string): Promise<void> {
@@ -313,22 +334,28 @@ export const db = {
 
   async getAllAssessments(): Promise<Assessment[]> {
     if (supabase) {
-      const { data, error } = await supabase.from('assessments').select('*').order('created_at', { ascending: false });
-      if (error) return [];
-      return data || [];
-    } else {
-      return getFromStorage<Assessment>(STORAGE_KEYS.ASSESSMENTS);
+      try {
+        const { data, error } = await supabase.from('assessments').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        return data || [];
+      } catch (err) {
+        console.warn('Supabase assessments fetch failed, falling back to local storage:', err);
+      }
     }
+    return getFromStorage<Assessment>(STORAGE_KEYS.ASSESSMENTS);
   },
 
   async getAllResponses(): Promise<Response[]> {
     if (supabase) {
-      const { data, error } = await supabase.from('responses').select('*').order('submitted_at', { ascending: false });
-      if (error) return [];
-      return data || [];
-    } else {
-      return getFromStorage<Response>(STORAGE_KEYS.RESPONSES);
+      try {
+        const { data, error } = await supabase.from('responses').select('*').order('submitted_at', { ascending: false });
+        if (error) throw error;
+        return data || [];
+      } catch (err) {
+        console.warn('Supabase responses fetch failed, falling back to local storage:', err);
+      }
     }
+    return getFromStorage<Response>(STORAGE_KEYS.RESPONSES);
   },
 
   async getAllProfiles(): Promise<any[]> {
@@ -354,17 +381,20 @@ export const db = {
   async getStudentResponses(email: string): Promise<Response[]> {
     const target = email.trim().toLowerCase();
     if (supabase) {
-      const { data, error } = await supabase
-        .from('responses')
-        .select('*')
-        .ilike('student_email', target)
-        .order('submitted_at', { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from('responses')
+          .select('*')
+          .ilike('student_email', target)
+          .order('submitted_at', { ascending: false });
 
-      if (error) return [];
-      return data || [];
-    } else {
-      const responses = getFromStorage<Response>(STORAGE_KEYS.RESPONSES);
-      return responses.filter(r => (r.student_email || '').toLowerCase() === target);
+        if (error) throw error;
+        return data || [];
+      } catch (err) {
+        console.warn('Supabase student responses fetch failed, falling back to local storage:', err);
+      }
     }
+    const responses = getFromStorage<Response>(STORAGE_KEYS.RESPONSES);
+    return responses.filter(r => (r.student_email || '').toLowerCase() === target);
   }
 };
