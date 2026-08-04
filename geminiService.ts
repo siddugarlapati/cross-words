@@ -188,8 +188,9 @@ export const generateCrossword = async (
   fileData?: FileData
 ): Promise<CrosswordGenerationResult> => {
   try {
-    if (!apiKey) {
-      console.warn("⚠️ VITE_GEMINI_API_KEY is not configured. Using local topic generator.");
+    const hasValidKey = Boolean(apiKey && apiKey.startsWith("AIzaSy"));
+    if (!hasValidKey) {
+      console.warn("⚠️ VITE_GEMINI_API_KEY is not configured or invalid key format. Using instant dynamic topic generator.");
       return generateLocalCrossword(topic, content, numQuestions);
     }
 
