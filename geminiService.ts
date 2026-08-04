@@ -149,19 +149,18 @@ function generateLocalCrossword(
 
   // If candidate count is less than requested numQuestions, dynamically derive words from the topic string tokens
   if (candidateWords.length < numQuestions) {
-    const topicRawTokens = topicUpper
-      .replace(/[^A-Z]/g, '')
-      .slice(0, 10);
-    
-    const basePrefix = topicRawTokens.length >= 3 ? topicRawTokens : "CONCEPT";
-    for (let i = 1; candidateWords.length < numQuestions; i++) {
-      const synWord = candidateWords.some(c => c.word === basePrefix) ? `${basePrefix}${i}`.slice(0, 10) : basePrefix;
+    const rawTopicAlpha = topicUpper.replace(/[^A-Z]/g, '');
+    const prefix = rawTopicAlpha.length >= 3 ? rawTopicAlpha.slice(0, 7) : "CONCEPT";
+    let counter = 1;
+    while (candidateWords.length < numQuestions && counter < 100) {
+      const synWord = `${prefix}${counter}`.toUpperCase();
       if (!candidateWords.some(c => c.word === synWord)) {
         candidateWords.push({
           word: synWord,
-          clue: `Dynamic core concept #${i} derived directly from topic "${cleanTopic}"`
+          clue: `Dynamic core concept #${counter} derived directly from topic "${cleanTopic}"`
         });
       }
+      counter++;
     }
   }
 
