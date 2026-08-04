@@ -89,11 +89,11 @@ function validateCrossword(result: CrosswordGenerationResult) {
   }
 }
 
-function generateLocalCrossword(
+async function generateLocalCrossword(
   topic: string,
   content: string,
   numQuestions: number
-): CrosswordGenerationResult {
+): Promise<CrosswordGenerationResult> {
   const cleanTopic = (topic || "General Knowledge").trim();
   console.log(`⚡ Dynamically generating ${numQuestions} terms for topic: "${cleanTopic}"...`);
 
@@ -101,7 +101,42 @@ function generateLocalCrossword(
   const topicLower = cleanTopic.toLowerCase();
   const wordMap = new Map<string, string>();
 
-  // 1. Extract explicit terms from the user's topic title
+  // 1. Fetch real topic definitions from Wikipedia REST API (Free, Public, No key required)
+  try {
+    const wikiRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanTopic)}`);
+    if (wikiRes.ok) {
+      const wikiData = await wikiRes.json();
+      const extractText = wikiData?.extract || wikiData?.description || "";
+      if (extractText && extractText.length > 20) {
+        const sentences = extractText.split(/[.!?]+/).filter((s: string) => s.trim().length > 10);
+        const tokens = extractText
+          .toUpperCase()
+          .replace(/[^A-Z\s]/g, ' ')
+          .split(/\s+/)
+          .filter((w: string) => w.length >= 3 && w.length <= 12);
+
+        // Stopwords filter
+        const stopWords = new Set(["THE", "AND", "THAT", "HAVE", "FOR", "NOT", "WITH", "YOU", "THIS", "BUT", "HIS", "FROM", "THEY", "SAY", "HER", "SHE", "OR", "AN", "WILL", "MY", "ONE", "ALL", "WOULD", "THERE", "THEIR", "WHAT", "SO", "UP", "OUT", "IF", "ABOUT", "WHO", "GET", "WHICH", "GO", "ME", "WHEN", "MAKE", "CAN", "LIKE", "TIME", "NO", "JUST", "HIM", "KNOW", "TAKE", "PEOPLE", "INTO", "YEAR", "YOUR", "SOME", "COULD", "THEM", "SEE", "OTHER", "THAN", "THEN", "NOW", "LOOK", "ONLY", "COME", "ITS", "OVER", "THINK", "ALSO", "BACK", "AFTER", "USE", "TWO", "HOW", "OUR", "WORK", "FIRST", "WELL", "WAY", "EVEN", "NEW", "WANT", "BECAUSE", "ANY", "THESE", "GIVE", "DAY", "MOST", "US", "USED", "BEEN", "MANY", "MOST", "ALSO", "SUCH", "MORE", "MAY", "MANY", "OFTEN", "TYPE", "FORM"]);
+
+        tokens.forEach((w: string) => {
+          if (!stopWords.has(w) && !wordMap.has(w) && wordMap.size < numQuestions * 2) {
+            const lowerWord = w.toLowerCase();
+            const matchingSentence = sentences.find((s: string) => s.toLowerCase().includes(lowerWord));
+            let clue = `Key concept in the study of ${cleanTopic}`;
+            if (matchingSentence) {
+              const trimmedSent = matchingSentence.trim();
+              clue = trimmedSent.length > 90 ? `${trimmedSent.slice(0, 87)}...` : trimmedSent;
+            }
+            wordMap.set(w, clue);
+          }
+        });
+      }
+    }
+  } catch (wErr) {
+    console.warn("Wikipedia API fetch omitted, using domain pools:", wErr);
+  }
+
+  // 2. Extract explicit terms from the user's topic title
   const topicTokens = topicUpper
     .replace(/[^A-Z\s]/g, ' ')
     .split(/\s+/)
@@ -113,7 +148,7 @@ function generateLocalCrossword(
     }
   });
 
-  // 2. Extract terms from content text if provided
+  // 3. Extract terms from content text if provided
   if (content && content.trim().length > 30) {
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
     const contentTokens = content
@@ -144,12 +179,56 @@ function generateLocalCrossword(
     });
   }
 
-  // 3. Dynamic domain knowledge pools matching the specific topic keywords
+  // 4. Dynamic domain knowledge pools matching specific topic keywords
   const domainPools: Array<{ match: RegExp; terms: Array<{ word: string; clue: string }> }> = [
+    {
+      match: /car|automobile|vehicle|engine|motor|automotive|drive|transport/,
+      terms: [
+        { word: "ENGINE", clue: "Machine converting thermal or electrical energy into mechanical motion" },
+        { word: "WHEEL", clue: "Circular component rotating on an axle to move vehicles" },
+        { word: "BRAKE", clue: "Mechanical device for slowing or stopping vehicle movement" },
+        { word: "MOTOR", clue: "Power component generating mechanical force" },
+        { word: "PISTON", clue: "Sliding cylinder component transferring combustion force" },
+        { word: "BATTERY", clue: "Energy storage cell supplying electrical power to starter and lights" },
+        { word: "STEERING", clue: "Mechanism enabling driver to control vehicle direction" },
+        { word: "CHASSIS", clue: "Structural internal framework supporting vehicle components" },
+        { word: "EXHAUST", clue: "Piping system discharging waste combustion gases from engine" },
+        { word: "VEHICLE", clue: "Motorized machine designed for passenger or cargo transport" },
+        { word: "CLUTCH", clue: "Mechanism connecting and disconnecting engine power to transmission" },
+        { word: "RADIATOR", clue: "Heat exchanger cooling internal combustion engine liquid" }
+      ]
+    },
+    {
+      match: /cricket|sport|ball|bat|match|game|player|football|soccer/,
+      terms: [
+        { word: "BATTER", clue: "Player attempting to strike pitched ball with a bat" },
+        { word: "BOWLER", clue: "Player delivering ball toward wickets to dismiss batter" },
+        { word: "WICKET", clue: "Target structure of three stumps and two bails" },
+        { word: "UMPIRE", clue: "Officiating judge enforcing rules during a match" },
+        { word: "PITCH", clue: "Central strip on field where bowling and batting occur" },
+        { word: "STUMPS", clue: "Three vertical wooden posts forming the wicket" },
+        { word: "INNINGS", clue: "Division of match during which one team bats" },
+        { word: "RUNS", clue: "Basic unit of scoring achieved by batters crossing pitch" },
+        { word: "MATCH", clue: "Contest between two competing sports teams" }
+      ]
+    },
+    {
+      match: /solar|space|planet|star|astronomy|sun|universe|moon|orbit/,
+      terms: [
+        { word: "SUN", clue: "Star at center of solar system providing light and gravity" },
+        { word: "PLANET", clue: "Celestial body orbiting a star with sufficient self-gravity" },
+        { word: "ORBIT", clue: "Gravitationally curved trajectory of an object around a star or planet" },
+        { word: "GRAVITY", clue: "Fundamental force attracting massive bodies toward one another" },
+        { word: "ASTEROID", clue: "Rocky solar system body smaller than a planet" },
+        { word: "COMET", clue: "Icy small body releasing gas and dust when passing near sun" },
+        { word: "MOON", clue: "Natural satellite orbiting a planet" },
+        { word: "SATELLITE", clue: "Artificial or natural body orbiting a larger astronomical object" }
+      ]
+    },
     {
       match: /graph|tree|dijkstra|binary|traversal|data structure|stack|queue|heap|hash|node|array|link/,
       terms: [
-        { word: "GRAPH", clue: `Network structure composed of vertices and connecting edges in ${cleanTopic}` },
+        { word: "GRAPH", clue: `Network structure composed of vertices and connecting edges` },
         { word: "VERTEX", clue: `A fundamental point or node location within a graph structure` },
         { word: "EDGE", clue: `Connection or link between two vertices in a graph network` },
         { word: "DIJKSTRA", clue: `Shortest-path algorithm for finding minimum distance in weighted graphs` },
@@ -158,18 +237,7 @@ function generateLocalCrossword(
         { word: "TREE", clue: "Non-linear hierarchical data structure organized into parent and child nodes" },
         { word: "STACK", clue: "Linear Last-In First-Out (LIFO) data collection structure" },
         { word: "QUEUE", clue: "Linear First-In First-Out (FIFO) data collection structure" },
-        { word: "ARRAY", clue: "Contiguous block of memory holding indexed elements of identical type" },
-        { word: "NODE", clue: "Basic element containing data and pointers to adjoining nodes" },
-        { word: "LEAF", clue: "Terminal node located at the bottom of a tree having zero child nodes" },
-        { word: "PARENT", clue: "A node connected directly above another child node in a hierarchy" },
-        { word: "CHILD", clue: "A node connected directly beneath a preceding parent node" },
-        { word: "DEPTH", clue: "The total number of edges from the root node to a specific node" },
-        { word: "HEIGHT", clue: "The maximum edge distance from a node down to its furthest leaf" },
-        { word: "HEAP", clue: "Specialized tree-based structure satisfying the max or min heap property" },
-        { word: "HASH", clue: "Function mapping key values to numerical array storage locations" },
-        { word: "PATH", clue: "Sequence of edges connecting a series of distinct graph vertices" },
-        { word: "MATRIX", clue: "Two-dimensional array representing graph connections or grid coordinates" },
-        { word: "POINTER", clue: "Reference variable storing the memory address of a target element" }
+        { word: "ARRAY", clue: "Contiguous block of memory holding indexed elements of identical type" }
       ]
     },
     {
@@ -311,11 +379,11 @@ export const generateCrossword = async (
 
   if (!apiKey || apiKey === "DEMO") {
     console.warn("⚠️ No VITE_GEMINI_API_KEY set. Running local topic generator.");
-    return generateLocalCrossword(cleanTopic, content, numQuestions);
+    return await generateLocalCrossword(cleanTopic, content, numQuestions);
   }
 
-  // Models in preference order: gemini-2.5-flash -> gemini-2.0-flash -> gemini-1.5-flash
-  const candidateModels = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  // Use only the fastest model to avoid multiple retries
+  const modelName = "gemini-2.5-flash";
 
   const hasStudyMaterial = Boolean(content && content.trim().length > 0) || Boolean(fileData);
 
@@ -337,7 +405,8 @@ export const generateCrossword = async (
   };
 
   if (content) {
-    payload.contents[0].parts.push({ text: `Study Material Text:\n${content.substring(0, 15000)}` });
+    // Limit content to 4000 chars to reduce latency and token usage
+    payload.contents[0].parts.push({ text: `Study Material Text:\n${content.substring(0, 4000)}` });
   }
 
   if (fileData) {
@@ -351,71 +420,69 @@ export const generateCrossword = async (
     });
   }
 
-  for (const modelName of candidateModels) {
-    try {
-      console.log(`🤖 Requesting Gemini API model: ${modelName}...`);
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 8000);
+  try {
+    console.log(`🤖 Requesting Gemini API model: ${modelName}...`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: controller.signal
-        }
-      );
-      clearTimeout(timer);
-
-      if (!response.ok) {
-        const errBody = await response.text();
-        console.warn(`Gemini Model ${modelName} returned HTTP ${response.status}:`, errBody);
-        continue;
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey.trim()}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal
       }
+    );
+    clearTimeout(timer);
 
-      const resJson = await response.json();
-      const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (!rawText) continue;
-
-      const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
-
-      let parsed: any = {};
-      try {
-        parsed = JSON.parse(cleanText);
-      } catch (pErr) {
-        const jsonMatch = cleanText.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsed = JSON.parse(jsonMatch[0]);
-        }
-      }
-
-      const termsArray = Array.isArray(parsed) ? parsed : (parsed.terms || parsed.questions || []);
-
-      const wordItems = termsArray
-        .map((t: any) => ({
-          word: ((t.word || t.term || "").toUpperCase().replace(/[^A-Z]/g, "")),
-          clue: (t.definition || t.clue || t.description || "").trim()
-        }))
-        .filter((t: any) => t.word.length >= 3 && t.word.length <= 12 && t.clue.length > 0);
-
-      if (wordItems.length > 0) {
-        const placed = generateLayout(wordItems, numQuestions);
-        if (placed.length > 0) {
-          console.log(`✅ Gemini API model ${modelName} successfully generated ${placed.length} crossword terms!`);
-          return {
-            title: cleanTopic,
-            subject: cleanTopic,
-            questions: placed
-          };
-        }
-      }
-    } catch (apiErr: any) {
-      console.warn(`Gemini API call to ${modelName} failed or timed out:`, apiErr.message || apiErr);
+    if (!response.ok) {
+      const errBody = await response.text();
+      console.warn(`Gemini Model ${modelName} returned HTTP ${response.status}:`, errBody);
+      throw new Error(`HTTP ${response.status}`);
     }
+
+    const resJson = await response.json();
+    const rawText = resJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawText) throw new Error("Empty response");
+
+    const cleanText = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(cleanText);
+    } catch (pErr) {
+      const jsonMatch = cleanText.match(/\[[\s\S]*\]|\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+      }
+    }
+
+    const termsArray = Array.isArray(parsed) ? parsed : (parsed.terms || parsed.questions || []);
+
+    const wordItems = termsArray
+      .map((t: any) => ({
+        word: ((t.word || t.term || "").toUpperCase().replace(/[^A-Z]/g, "")),
+        clue: (t.definition || t.clue || t.description || "").trim()
+      }))
+      .filter((t: any) => t.word.length >= 3 && t.word.length <= 12 && t.clue.length > 0);
+
+    if (wordItems.length > 0) {
+      const placed = generateLayout(wordItems, numQuestions);
+      if (placed.length > 0) {
+        console.log(`✅ Gemini API model ${modelName} successfully generated ${placed.length} crossword terms!`);
+        return {
+          title: cleanTopic,
+          subject: cleanTopic,
+          questions: placed
+        };
+      }
+    }
+  } catch (apiErr: any) {
+    console.warn(`Gemini API call to ${modelName} failed or timed out:`, apiErr.message || apiErr);
   }
 
   console.warn("⚠️ Gemini API fallback to local generator.");
-  return generateLocalCrossword(cleanTopic, content, numQuestions);
+  return await generateLocalCrossword(cleanTopic, content, numQuestions);
 };
 
