@@ -88,7 +88,21 @@ const FacultyCreate: React.FC = () => {
     setStep('generating');
     setLoading(true);
     try {
-      const effectiveTopic = formData.topic || formData.subject || formData.title || 'General Knowledge';
+      const topicStr = formData.topic.trim();
+      const subjectStr = formData.subject.trim();
+      const titleStr = formData.title.trim();
+
+      let effectiveTopic = 'General Knowledge';
+      if (topicStr && subjectStr) {
+        effectiveTopic = `${subjectStr}: ${topicStr}`;
+      } else if (topicStr) {
+        effectiveTopic = topicStr;
+      } else if (subjectStr) {
+        effectiveTopic = subjectStr;
+      } else if (titleStr) {
+        effectiveTopic = titleStr;
+      }
+
       const aiResult = await generateCrossword(
         effectiveTopic,
         formData.content,
@@ -101,7 +115,7 @@ const FacultyCreate: React.FC = () => {
     } catch (err) {
       console.error('Generation error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      alert(`Generation failed: ${errorMessage}\n\nPlease check your internet connection or document content.`);
+      alert(`Generation failed: ${errorMessage}\n\nPlease check your internet connection or topic/document content.`);
       setStep('config');
     } finally {
       setLoading(false);
@@ -582,47 +596,61 @@ const FacultyCreate: React.FC = () => {
           </div>
         </div>
 
-        {/* File Upload Box */}
+        {/* Prominent Topic Focus Field */}
+        <div className="space-y-1.5 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-black text-[#002147] uppercase tracking-wider block px-1">
+              Syllabus Topic / Specific Topic Focus
+            </label>
+            <span className="text-[10px] font-bold text-teal-800 bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
+              Generate by topic (No document required)
+            </span>
+          </div>
+          <input
+            name="topic"
+            className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 outline-none text-sm text-slate-800 focus:border-[#b01c1e] placeholder:text-slate-400 font-medium"
+            placeholder="e.g. Graph Traversal Algorithms & Dijkstra, Operating Systems, Photosynthesis, etc."
+            value={formData.topic}
+            onChange={handleChange}
+          />
+          <p className="text-[11px] text-slate-500 px-1 font-medium">
+            Type any curriculum topic name here. The AI will generate terms and clues directly from this topic if no file is uploaded.
+          </p>
+        </div>
+
+        {/* File Upload Box (Optional) */}
         <div className="space-y-1">
-          <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Upload Course Document (PDF, DOCX)</label>
+          <div className="flex items-center justify-between px-1">
+            <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">Upload Course Document (Optional)</label>
+            <span className="text-[10px] text-slate-600 italic">PDF, DOCX, PPTX</span>
+          </div>
           <div
             onClick={() => fileInputRef.current?.click()}
-            className={`border-2 border-dashed rounded-2xl p-8 transition-all cursor-pointer flex flex-col items-center justify-center text-center ${
+            className={`border-2 border-dashed rounded-2xl p-6 transition-all cursor-pointer flex flex-col items-center justify-center text-center ${
               fileName ? 'border-teal-600 bg-teal-50' : 'border-slate-300 bg-slate-50 hover:border-slate-400 hover:bg-slate-100'
             }`}
           >
             <input type="file" ref={fileInputRef} className="hidden" accept=".pdf,.docx,.doc,.pptx,.ppt" onChange={handleFileChange} />
             {fileName ? (
               <>
-                <div className="w-12 h-12 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center mb-3 border border-teal-200">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                <div className="w-10 h-10 bg-teal-100 text-teal-700 rounded-xl flex items-center justify-center mb-2 border border-teal-200">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                 </div>
                 <p className="text-sm font-bold text-teal-800">{fileName}</p>
-                <button type="button" onClick={(e) => { e.stopPropagation(); setFileName(''); setSelectedFile(null); }} className="text-xs text-red-600 font-bold uppercase mt-2 hover:underline">
+                <button type="button" onClick={(e) => { e.stopPropagation(); setFileName(''); setSelectedFile(null); }} className="text-xs text-red-600 font-bold uppercase mt-1.5 hover:underline">
                   Remove File
                 </button>
               </>
             ) : (
               <>
-                <div className="w-12 h-12 bg-slate-200 text-slate-600 rounded-xl flex items-center justify-center mb-3 border border-slate-300">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+                <div className="w-10 h-10 bg-slate-200 text-slate-600 rounded-xl flex items-center justify-center mb-2 border border-slate-300">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
                 </div>
-                <p className="text-sm text-slate-800 font-bold">Click or drag & drop syllabus document</p>
-                <p className="text-xs text-slate-500 mt-1">Supports PDF, DOCX, and PPTX up to 10MB</p>
+                <p className="text-xs text-slate-800 font-bold">Optional: Attach syllabus document if available</p>
+                <p className="text-[11px] text-slate-500 mt-0.5">Click or drag file here (Supports PDF, DOCX, PPTX)</p>
               </>
             )}
           </div>
-        </div>
-
-        <div className="space-y-1">
-          <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block px-1">Specific Topic Focus (Optional)</label>
-          <input
-            name="topic"
-            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none text-sm text-slate-800 focus:border-[#b01c1e] focus:bg-white"
-            placeholder="e.g. Graph Traversal Algorithms & Dijkstra"
-            value={formData.topic}
-            onChange={handleChange}
-          />
         </div>
 
         {/* Schedule & Deadline Config */}
