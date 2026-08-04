@@ -94,202 +94,193 @@ function generateLocalCrossword(
   content: string,
   numQuestions: number
 ): CrosswordGenerationResult {
-  console.log("⚡ Generating crossword from topic & content locally...");
+  const cleanTopic = (topic || "General Knowledge").trim();
+  console.log(`⚡ Dynamically generating ${numQuestions} terms for topic: "${cleanTopic}"...`);
 
-  let validWords: Array<{ word: string; clue: string }> = [];
-  const cleanTopic = (topic || "").toLowerCase().trim();
+  const topicUpper = cleanTopic.toUpperCase();
+  const topicLower = cleanTopic.toLowerCase();
+  const wordMap = new Map<string, string>();
 
-  if (content && content.trim().length > 50) {
-    // Clean and tokenize content
+  // 1. Extract explicit terms from the user's topic title
+  const topicTokens = topicUpper
+    .replace(/[^A-Z\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length >= 3 && w.length <= 12);
+
+  topicTokens.forEach(word => {
+    if (!wordMap.has(word)) {
+      wordMap.set(word, `Primary term directly defining "${cleanTopic}"`);
+    }
+  });
+
+  // 2. Extract terms from content text if provided
+  if (content && content.trim().length > 30) {
     const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 10);
-    const words = content
+    const contentTokens = content
       .toUpperCase()
       .replace(/[^A-Z\s]/g, ' ')
       .split(/\s+/)
       .filter(w => w.length >= 3 && w.length <= 12);
 
-    // Count word frequency
-    const wordFreq = new Map<string, number>();
-    words.forEach(w => wordFreq.set(w, (wordFreq.get(w) || 0) + 1));
-
-    // Get most important words
-    const importantWords = Array.from(wordFreq.entries())
-      .filter(([word, freq]) => freq > 1 || word.length >= 5)
-      .sort((a, b) => b[1] - a[1])
-      .map(([word]) => word)
-      .filter((w, i, arr) => arr.indexOf(w) === i)
-      .slice(0, numQuestions * 2);
-
-    // Generate clues
-    const generated = importantWords.map(w => {
-      let clue = `Key concept in the study material: ${w.charAt(0) + w.slice(1).toLowerCase()}`;
-      const lowerWord = w.toLowerCase();
-      const contextSentence = sentences.find(s => s.toLowerCase().includes(lowerWord));
-      if (contextSentence) {
-        const wordsList = contextSentence.trim().split(/\s+/);
-        const wIdx = wordsList.findIndex(x => x.toLowerCase().replace(/[^a-z]/g, '') === lowerWord);
-        if (wIdx >= 0) {
-          const start = Math.max(0, wIdx - 3);
-          const end = Math.min(wordsList.length, wIdx + 4);
-          const context = wordsList.slice(start, end).filter((_, idx) => idx !== wIdx - start).join(' ').replace(/[^a-zA-Z\s]/g, '').trim();
-          if (context.length > 10) {
-            clue = `Related to: ... ${context.slice(0, 60)} ...`;
+    contentTokens.forEach(w => {
+      if (!wordMap.has(w) && wordMap.size < numQuestions * 2) {
+        const lowerWord = w.toLowerCase();
+        const contextSentence = sentences.find(s => s.toLowerCase().includes(lowerWord));
+        let clue = `Key term from study materials for "${cleanTopic}"`;
+        if (contextSentence) {
+          const wordsList = contextSentence.trim().split(/\s+/);
+          const wIdx = wordsList.findIndex(x => x.toLowerCase().replace(/[^a-z]/g, '') === lowerWord);
+          if (wIdx >= 0) {
+            const start = Math.max(0, wIdx - 3);
+            const end = Math.min(wordsList.length, wIdx + 4);
+            const context = wordsList.slice(start, end).filter((_, idx) => idx !== wIdx - start).join(' ').replace(/[^a-zA-Z\s]/g, '').trim();
+            if (context.length > 8) {
+              clue = `Context: ... ${context.slice(0, 60)} ...`;
+            }
           }
         }
-      }
-      return { word: w, clue };
-    });
-
-    validWords = generated.filter(item => item.word.length >= 3 && item.word.length <= 15);
-  }
-
-  // Rich domain dictionaries for educational subjects
-  const csAndTechWords = [
-    { word: "ALGORITHM", clue: "A step-by-step procedure or set of rules for solving a problem" },
-    { word: "DATABASE", clue: "An organized collection of structured data stored electronically" },
-    { word: "COMPILER", clue: "Software that translates high-level code into executable machine instructions" },
-    { word: "NETWORK", clue: "A collection of interconnected computing systems exchanging data" },
-    { word: "VARIABLE", clue: "A named storage location holding a value that can change during execution" },
-    { word: "INTERFACE", clue: "A shared boundary defining methods for component communication" },
-    { word: "SECURITY", clue: "Protection of digital systems, data, and networks from unauthorized access" },
-    { word: "RECURSION", clue: "A method where a function calls itself to solve smaller sub-problems" },
-    { word: "POINTER", clue: "A variable storing the memory location address of another value" },
-    { word: "THREAD", clue: "The smallest unit of execution within an operating system process" },
-    { word: "KERNEL", clue: "The core component of an operating system managing system resources" },
-    { word: "OBJECT", clue: "An instance of a class encapsulating data properties and behavior methods" },
-    { word: "INHERITANCE", clue: "Mechanism where a new class adopts characteristics from an existing parent class" },
-    { word: "ENCAPSULATION", clue: "Bundling data and operations into a single unit while restricting direct access" },
-    { word: "POLYMORPHISM", clue: "Ability of different objects to respond to the same interface or method" },
-    { word: "TRAVERSAL", clue: "Visiting each element or node in a data structure systematically" },
-    { word: "ITERATION", clue: "Repeated execution of a block of statements until a condition is met" },
-    { word: "PROTOCOL", clue: "Set of rules governing the exchange of data between devices" },
-    { word: "PIPELINE", clue: "A chain of processing elements where the output of one is input to next" },
-    { word: "ENCRYPTION", clue: "Encoding information so only authorized parties can access it" },
-    { word: "FRAMEWORK", clue: "Reusable software platform providing foundation for building applications" },
-    { word: "REPOSITORY", clue: "Centralized location for storing and managing code or data assets" },
-    { word: "MIDDLEWARE", clue: "Software layer providing services to applications beyond OS capabilities" },
-    { word: "PARALLEL", clue: "Executing multiple computations simultaneously across processing cores" },
-    { word: "DEPENDENCY", clue: "A reliance of one software module on another to function properly" }
-  ];
-
-  const dataStructuresWords = [
-    { word: "BINARY", clue: "A tree structure where each node has at most two children" },
-    { word: "TREE", clue: "A hierarchical non-linear data structure consisting of connected nodes" },
-    { word: "GRAPH", clue: "A structure consisting of a set of vertices connected by edges" },
-    { word: "VERTEX", clue: "A fundamental node or point in a graph network" },
-    { word: "EDGE", clue: "A connection or link between two vertices in a graph" },
-    { word: "STACK", clue: "A Last-In First-Out (LIFO) linear data structure" },
-    { word: "QUEUE", clue: "A First-In First-Out (FIFO) linear data structure" },
-    { word: "ARRAY", clue: "A contiguous sequence of elements indexed by numerical positions" },
-    { word: "NODE", clue: "A basic building block containing data and links to other nodes" },
-    { word: "PARENT", clue: "A node that has one or more child nodes beneath it in a tree" },
-    { word: "CHILD", clue: "A node connected directly below a parent node in a tree" },
-    { word: "LEAF", clue: "A terminal node in a tree structure that has no children" },
-    { word: "DEPTH", clue: "The number of edges from the root node to a specific node" },
-    { word: "HEIGHT", clue: "The length of the longest path from a node to a leaf" },
-    { word: "SEARCH", clue: "Finding the position of a specific target key within a structure" },
-    { word: "HASH", clue: "Converting a key into a numeric index using a mapping function" },
-    { word: "HEAP", clue: "A specialized tree-based structure satisfying the heap property" },
-    { word: "TRAVERSAL", clue: "Visiting every node in a tree or graph systematically" },
-    { word: "DIJKSTRA", clue: "Algorithm for finding the shortest path between nodes in a graph" },
-    { word: "MATRIX", clue: "A two-dimensional grid array representing graph adjacency or data" },
-    { word: "POINTER", clue: "Reference link pointing to the memory address of the next node" },
-    { word: "BALANCE", clue: "Keeping a tree height minimal to maintain logarithmic operation times" }
-  ];
-
-  const scienceWords = [
-    { word: "GRAVITY", clue: "Universal force that attracts physical bodies toward one another" },
-    { word: "ENERGY", clue: "The capacity to perform physical work or transfer heat" },
-    { word: "ATOM", clue: "The fundamental unit of a chemical element" },
-    { word: "ELECTRON", clue: "A subatomic particle carrying a negative electrical charge" },
-    { word: "FORCE", clue: "An interaction that changes or tends to change an object's motion" },
-    { word: "EVOLUTION", clue: "Process by which biological populations adapt across generations" },
-    { word: "GENETICS", clue: "The study of heredity and biological variation in organisms" },
-    { word: "PHOTOSYNTHESIS", clue: "Chemical process converting light energy into cellular food" },
-    { word: "CELL", clue: "The structural and functional basic unit of biological organisms" },
-    { word: "MOLECULE", clue: "Group of two or more chemical atoms held together by covalent bonds" }
-  ];
-
-  const mathWords = [
-    { word: "EQUATION", clue: "Mathematical statement asserting equality between two expressions" },
-    { word: "CALCULUS", clue: "Branch of mathematics studying rates of continuous change" },
-    { word: "MATRIX", clue: "A rectangular array of numbers arranged in rows and columns" },
-    { word: "VECTOR", clue: "A mathematical entity possessing both magnitude and direction" },
-    { word: "THEOREM", clue: "A logical statement proved based on established axioms" },
-    { word: "FRACTION", clue: "A numerical representation of a part of a whole quantity" },
-    { word: "GEOMETRY", clue: "Branch of mathematics analyzing space, shapes, and positions" },
-    { word: "ALGEBRA", clue: "Branch of mathematics operating on symbols and relational rules" },
-    { word: "POLYNOMIAL", clue: "Expression involving sums of terms with non-negative power variables" },
-    { word: "PROBABILITY", clue: "Measure of the likelihood that a given event will take place" }
-  ];
-
-  const genericEduWords = [
-    { word: "FUNDAMENTALS", clue: "The central core principles establishing a domain of study" },
-    { word: "ARCHITECTURE", clue: "The structural layout and conceptual organization of a system" },
-    { word: "METHODOLOGY", clue: "A contextual framework of methods and procedures applied to a subject" },
-    { word: "IMPLEMENTATION", clue: "The execution or practical realization of an idea or design" },
-    { word: "OPTIMIZATION", clue: "Modifying a process or system to achieve maximum efficiency" },
-    { word: "EVALUATION", clue: "Systematic determination of merit, performance, or value" },
-    { word: "SPECIFICATION", clue: "Detailed documentation describing required criteria and functionality" },
-    { word: "INTEGRATION", clue: "Combining sub-components into a unified operational system" }
-  ];
-
-  // Select primary dictionary based on topic subject keywords
-  let selectedDictionary = csAndTechWords;
-  if (cleanTopic.match(/tree|graph|binary|data structure|stack|queue|array|node|linked|heap|hash|dijkstra/)) {
-    selectedDictionary = dataStructuresWords;
-  } else if (cleanTopic.match(/computer|code|program|software|data|algorithm|operating|network|web|tech|system|dev|java|python|cpp|c|engineering|cs/)) {
-    selectedDictionary = csAndTechWords;
-  } else if (cleanTopic.match(/science|physic|chem|biology|cell|atom|genet|botany|zoo/)) {
-    selectedDictionary = scienceWords;
-  } else if (cleanTopic.match(/math|algebra|calculus|stat|matrix|geo|prob/)) {
-    selectedDictionary = mathWords;
-  } else {
-    selectedDictionary = [...csAndTechWords, ...genericEduWords];
-  }
-
-  // Extract terms directly from the topic title itself
-  if (topic) {
-    const topicTokens = topic.toUpperCase().replace(/[^A-Z\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3 && w.length <= 12);
-    topicTokens.forEach(token => {
-      if (!validWords.some(v => v.word === token)) {
-        validWords.push({
-          word: token,
-          clue: `Core term directly defining the topic "${topic}"`
-        });
+        wordMap.set(w, clue);
       }
     });
   }
 
-  // Fill remaining questions using selected dictionary
-  let dictIdx = 0;
-  while (validWords.length < numQuestions) {
-    const item = selectedDictionary[dictIdx % selectedDictionary.length];
-    if (!validWords.some(w => w.word === item.word)) {
-      validWords.push(item);
+  // 3. Dynamic domain knowledge pools matching the specific topic keywords
+  const domainPools: Array<{ match: RegExp; terms: Array<{ word: string; clue: string }> }> = [
+    {
+      match: /graph|tree|dijkstra|binary|traversal|data structure|stack|queue|heap|hash|node|array|link/,
+      terms: [
+        { word: "GRAPH", clue: `Network structure composed of vertices and connecting edges in ${cleanTopic}` },
+        { word: "VERTEX", clue: `A fundamental point or node location within a graph structure` },
+        { word: "EDGE", clue: `Connection or link between two vertices in a graph network` },
+        { word: "DIJKSTRA", clue: `Shortest-path algorithm for finding minimum distance in weighted graphs` },
+        { word: "TRAVERSAL", clue: `Systematic process of visiting every node or vertex in a data structure` },
+        { word: "BINARY", clue: `Hierarchical tree structure where nodes have at most two child branches` },
+        { word: "TREE", clue: "Non-linear hierarchical data structure organized into parent and child nodes" },
+        { word: "STACK", clue: "Linear Last-In First-Out (LIFO) data collection structure" },
+        { word: "QUEUE", clue: "Linear First-In First-Out (FIFO) data collection structure" },
+        { word: "ARRAY", clue: "Contiguous block of memory holding indexed elements of identical type" },
+        { word: "NODE", clue: "Basic element containing data and pointers to adjoining nodes" },
+        { word: "LEAF", clue: "Terminal node located at the bottom of a tree having zero child nodes" },
+        { word: "PARENT", clue: "A node connected directly above another child node in a hierarchy" },
+        { word: "CHILD", clue: "A node connected directly beneath a preceding parent node" },
+        { word: "DEPTH", clue: "The total number of edges from the root node to a specific node" },
+        { word: "HEIGHT", clue: "The maximum edge distance from a node down to its furthest leaf" },
+        { word: "HEAP", clue: "Specialized tree-based structure satisfying the max or min heap property" },
+        { word: "HASH", clue: "Function mapping key values to numerical array storage locations" },
+        { word: "PATH", clue: "Sequence of edges connecting a series of distinct graph vertices" },
+        { word: "MATRIX", clue: "Two-dimensional array representing graph connections or grid coordinates" },
+        { word: "POINTER", clue: "Reference variable storing the memory address of a target element" }
+      ]
+    },
+    {
+      match: /operating|os|kernel|process|thread|memory|system|cpu|schedul|semaphore|buffer|deadlock/,
+      terms: [
+        { word: "KERNEL", clue: `Central core module of an operating system managing system hardware` },
+        { word: "PROCESS", clue: `An active instance of a computer program currently executing` },
+        { word: "THREAD", clue: `Smallest sequence of programmed instructions managed independently by OS` },
+        { word: "MEMORY", clue: `Primary storage component holding data and running process code` },
+        { word: "DEADLOCK", clue: `Concurrency state where multiple processes block indefinitely waiting for resources` },
+        { word: "SEMAPHORE", clue: `Synchronization flag variable managing shared resource access` },
+        { word: "PAGING", clue: `Memory allocation scheme transferring fixed-size blocks between RAM and disk` },
+        { word: "BUFFER", clue: `Temporary memory storage area used to hold data during transfer` },
+        { word: "CACHE", clue: `High-speed memory layer storing frequently accessed processor data` },
+        { word: "SCHEDULER", clue: `OS component deciding which process runs on CPU next` }
+      ]
+    },
+    {
+      match: /db|database|sql|query|schema|table|relation|index|transaction|relational/,
+      terms: [
+        { word: "DATABASE", clue: `Organized collection of structured data stored for rapid processing` },
+        { word: "SCHEMA", clue: `Formal structural specification defining tables, fields, and constraints` },
+        { word: "QUERY", clue: `Command or request used to retrieve or manipulate stored database records` },
+        { word: "INDEX", clue: `Data structure accelerating lookup operations on table columns` },
+        { word: "TABLE", clue: `Collection of related data organized in rows and columns` },
+        { word: "RELATION", clue: "Mathematical concept of a table with attributes and tuples" },
+        { word: "TRANSACTION", clue: "Unit of work executed atomically against a database" }
+      ]
+    },
+    {
+      match: /network|protocol|ip|tcp|udp|web|http|router|packet|socket|server|client/,
+      terms: [
+        { word: "PROTOCOL", clue: `Standard rule set facilitating communication across network endpoints` },
+        { word: "ROUTER", clue: `Hardware device directing data packets between different networks` },
+        { word: "PACKET", clue: `Unit of formatted data transmitted over a packet-switched network` },
+        { word: "SOCKET", clue: `Software endpoint for sending and receiving data over network` },
+        { word: "SERVER", clue: `System or application providing services and resources to clients` },
+        { word: "CLIENT", clue: `Device or software requesting services from a remote network server` }
+      ]
+    },
+    {
+      match: /photo|plant|cell|biology|gene|dna|organ|bio|botany|zoo|life/,
+      terms: [
+        { word: "PHOTOSYNTHESIS", clue: `Biological process synthesizing nutrients from sunlight and carbon dioxide` },
+        { word: "CHLOROPHYLL", clue: `Green pigment absorbing light energy inside plant chloroplasts` },
+        { word: "CELL", clue: `Basic structural, functional, and biological unit of living organisms` },
+        { word: "MEMBRANE", clue: `Selective barrier surrounding cells regulating transport of substances` },
+        { word: "ENZYME", clue: `Biological catalyst accelerating chemical reactions in living cells` },
+        { word: "GENETICS", clue: `Study of heredity and genetic variation in living organisms` },
+        { word: "MOLECULE", clue: `Chemical structure composed of bonded atoms` }
+      ]
+    },
+    {
+      match: /chem|atom|reaction|element|bond|acid|base|compound|matter/,
+      terms: [
+        { word: "ATOM", clue: `Smallest constituent unit of ordinary matter possessing chemical element properties` },
+        { word: "ELECTRON", clue: `Subatomic particle with negative charge orbiting atomic nucleus` },
+        { word: "PROTON", clue: `Positively charged subatomic particle located in the atomic nucleus` },
+        { word: "NEUTRON", clue: `Uncharged subatomic particle present in atomic nuclei` },
+        { word: "BOND", clue: `Attraction between atoms enabling formation of chemical compounds` },
+        { word: "REACTION", clue: `Process transforming one set of chemical substances into another` }
+      ]
+    },
+    {
+      match: /physics|thermo|heat|energy|force|motion|wave|light|electric/,
+      terms: [
+        { word: "THERMODYNAMICS", clue: `Branch of physics dealing with heat, work, and energy transformations` },
+        { word: "ENTROPY", clue: `Measure of thermal energy unavailable for doing useful mechanical work` },
+        { word: "ENTHALPY", clue: `Total heat content of a thermodynamic system` },
+        { word: "ENERGY", clue: `Quantitative property transferred to an object to perform work` },
+        { word: "KINETIC", clue: `Energy possessed by an object due to its motion` },
+        { word: "PRESSURE", clue: `Continuous physical force exerted per unit area` }
+      ]
     }
-    dictIdx++;
-    if (dictIdx > selectedDictionary.length * 3 && validWords.length < numQuestions) {
-      // Backup fallback if dictionary exhausted
-      const fallbackItem = genericEduWords[validWords.length % genericEduWords.length];
-      if (!validWords.some(w => w.word === fallbackItem.word)) {
-        validWords.push(fallbackItem);
-      } else {
-        const altWord = `KEY${validWords.length + 1}TERM`;
-        validWords.push({
-          word: altWord.slice(0, 10),
-          clue: `Important concept associated with ${topic || 'this subject'}`
+  ];
+
+  // Match topic to candidate terms
+  domainPools.forEach(pool => {
+    if (pool.match.test(topicLower)) {
+      pool.terms.forEach(t => {
+        if (!wordMap.has(t.word) && wordMap.size < numQuestions * 2) {
+          wordMap.set(t.word, t.clue);
+        }
+      });
+    }
+  });
+
+  // Convert to candidate array
+  let candidates = Array.from(wordMap.entries()).map(([word, clue]) => ({ word, clue }));
+
+  // If more terms needed, dynamically synthesize terms directly bound to the topic string
+  if (candidates.length < numQuestions) {
+    const rawTokens = topicUpper.replace(/[^A-Z]/g, '');
+    const cleanPrefix = rawTokens.length >= 3 && rawTokens.length <= 10 ? rawTokens : "TOPIC";
+    for (let i = 1; candidates.length < numQuestions; i++) {
+      const synWord = candidates.some(c => c.word === cleanPrefix) ? `${cleanPrefix}${i}`.slice(0, 10) : cleanPrefix;
+      if (!candidates.some(c => c.word === synWord)) {
+        candidates.push({
+          word: synWord,
+          clue: `Core concept #${i} directly defining the topic "${cleanTopic}"`
         });
       }
     }
   }
 
-  const selectedWords = validWords.slice(0, numQuestions);
+  const selectedWords = candidates.slice(0, numQuestions);
   const arranged = generateLayout(selectedWords, selectedWords.length);
 
   return {
-    title: topic || "Generated Assessment",
-    subject: topic || "General Studies",
+    title: cleanTopic,
+    subject: cleanTopic,
     questions: arranged.map(p => ({
       word: p.word,
       clue: p.clue,
