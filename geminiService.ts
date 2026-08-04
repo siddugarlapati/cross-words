@@ -107,6 +107,39 @@ async function generateDynamicLocalCrossword(
   });
 
   const candidateWords = Array.from(wordMap.entries()).map(([word, clue]) => ({ word, clue }));
+
+  // Pad with a generic academic word pool so we always reach numQuestions,
+  // even when Wikipedia/CORS blocks the live extraction.
+  const genericPool = [
+    { word: "ANALYSIS", clue: `Detailed examination of the components and structure of ${cleanTopic}` },
+    { word: "METHOD", clue: `A systematic procedure used to study ${cleanTopic}` },
+    { word: "CONCEPT", clue: `An abstract idea or general notion central to ${cleanTopic}` },
+    { word: "THEORY", clue: `A well-supported explanation of phenomena in ${cleanTopic}` },
+    { word: "PROCESS", clue: `A sequence of steps that defines how ${cleanTopic} operates` },
+    { word: "STRUCTURE", clue: `The arrangement of parts that make up ${cleanTopic}` },
+    { word: "FUNCTION", clue: `The specific role or purpose within ${cleanTopic}` },
+    { word: "SYSTEM", clue: `A set of connected components forming ${cleanTopic}` },
+    { word: "PRINCIPLE", clue: `A fundamental truth or rule governing ${cleanTopic}` },
+    { word: "MODEL", clue: `A simplified representation used to explain ${cleanTopic}` },
+    { word: "RESEARCH", clue: `Systematic investigation to establish facts about ${cleanTopic}` },
+    { word: "KNOWLEDGE", clue: `Facts and information acquired through the study of ${cleanTopic}` },
+    { word: "ALGORITHM", clue: `A step-by-step procedure for solving problems in ${cleanTopic}` },
+    { word: "DATA", clue: `Facts and figures collected and analyzed in ${cleanTopic}` },
+    { word: "EVIDENCE", clue: `Information supporting a conclusion in ${cleanTopic}` },
+    { word: "FRAMEWORK", clue: `A conceptual structure supporting ${cleanTopic}` },
+    { word: "VARIABLE", clue: `A factor that can change within ${cleanTopic}` },
+    { word: "APPLICATION", clue: `Practical use of ${cleanTopic} in real-world scenarios` },
+    { word: "REPRESENTATION", clue: `A way of depicting or modeling aspects of ${cleanTopic}` },
+    { word: "INTERPRETATION", clue: `The act of explaining meaning within ${cleanTopic}` },
+  ];
+
+  for (const g of genericPool) {
+    if (candidateWords.length >= numQuestions) break;
+    if (!candidateWords.some(c => c.word === g.word)) {
+      candidateWords.push(g);
+    }
+  }
+
   const selectedWords = candidateWords.slice(0, numQuestions);
 
   if (selectedWords.length === 0) {
@@ -212,7 +245,7 @@ export const generateCrossword = async (
 
           if (wordItems.length > 0) {
             const placed = generateLayout(wordItems, numQuestions);
-            if (placed.length > 0) {
+            if (placed.length >= Math.min(numQuestions, 5)) {
               console.log(`✅ Gemini AI successfully generated ${placed.length} terms for "${cleanTopic}"!`);
               return {
                 title: cleanTopic,
