@@ -39,8 +39,8 @@ export function generateLayout(
 
   let bestPlaced: PlacedWord[] = [];
 
-  // Try different starting words to find the best/most connected layout
-  for (let startIndex = 0; startIndex < Math.min(8, sortedItems.length); startIndex++) {
+  // Try at most 2 starting words for maximum speed
+  for (let startIndex = 0; startIndex < Math.min(2, sortedItems.length); startIndex++) {
     const placed = attemptPlacement(sortedItems, startIndex, targetCount);
     if (placed.length > bestPlaced.length) {
       bestPlaced = placed;

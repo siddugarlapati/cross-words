@@ -260,7 +260,13 @@ export const generateCrossword = async (
     });
 
     console.log("Stage 1: Generating terms for topic/content:", topic);
-    const stage1Result = await stage1Model.generateContent(stage1Parts);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("API Timeout: Generation took longer than 6 seconds.")), 6000)
+    );
+    const stage1Result = await Promise.race([
+      stage1Model.generateContent(stage1Parts),
+      timeoutPromise
+    ]) as any;
 
     if (!stage1Result.response?.candidates?.[0]) {
       throw new Error("Stage 1 failed: No response candidates found. Content may have been blocked by safety filters.");
