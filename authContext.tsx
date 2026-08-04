@@ -78,25 +78,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (supabase) {
-      let initialSessionHandled = false;
-
-      // 1. Get existing session on mount
-      supabase.auth.getSession().then(({ data: { session } }) => {
-        initialSessionHandled = true;
-        if (session?.user) {
-          const u = session.user;
-          setUser({ id: u.id, email: u.email ?? '' });
-          fetchSupabaseProfile(u.id, u.user_metadata, u.email);
-        } else {
-          setLoading(false);
-        }
-      });
-
-      // 2. Listen for auth state changes (login/logout/signup)
+      // 1. Listen for auth state changes (login/logout/signup/token refresh)
       const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-        // Skip if getSession already handled the initial load
-        if (!initialSessionHandled) return;
-
         if (session?.user) {
           const u = session.user;
           setUser({ id: u.id, email: u.email ?? '' });
@@ -108,23 +91,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
 
+      // 2. Initial session check fallback
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session?.user) {
+          const u = session.user;
+          setUser({ id: u.id, email: u.email ?? '' });
+          fetchSupabaseProfile(u.id, u.user_metadata, u.email);
+        } else {
+          setLoading(false);
+        }
+      });
+
       return () => {
         subscription.unsubscribe();
       };
     } else {
       // 2. Setup local storage fallback auth (offline mode)
-      const dbStr = localStorage.getItem(LOCAL_USERS_DB_KEY);
-      if (!dbStr) {
-        const defaultUsers = [{
-          id: 'faculty-1',
-          email: 'faculty@anurag.edu.in',
-          password: 'Password123!',
-          fullName: 'Professor Anurag',
-          role: 'faculty'
-        }];
-        localStorage.setItem(LOCAL_USERS_DB_KEY, JSON.stringify(defaultUsers));
-      }
-
       const savedUser = localStorage.getItem(LOCAL_USER_KEY);
       const savedProfile = localStorage.getItem(LOCAL_PROFILE_KEY);
       if (savedUser && savedProfile) {
@@ -137,8 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   /**
    * Fetch user profile from Supabase `profiles` table.
-   * Falls back to session metadata if profile row doesn't exist yet
-   * (avoids extra auth API calls that trigger 429 rate limits).
+   * Auto-upserts profile if missing to prevent foreign key errors on assessment creation.
    */
   const fetchSupabaseProfile = async (
     userId: string,
@@ -146,32 +127,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email?: string | null
   ) => {
     try {
-      const { data } = await supabase!
+      const { data, error } = await supabase!
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      if (data) {
+      const defaultName = metadata?.full_name || (email ? email.split('@')[0] : '') || 'User';
+      const defaultRole = (metadata?.role as UserRole) || 'faculty';
+
+      if (data && data.full_name) {
         setProfile({
           id: data.id,
           full_name: data.full_name,
           role: (data.role as UserRole) || 'faculty'
         });
       } else {
-        // Use session metadata directly — no extra auth API call needed
+        // Auto-insert profile row in database if missing
+        const { data: inserted } = await supabase!
+          .from('profiles')
+          .upsert({
+            id: userId,
+            full_name: defaultName,
+            role: defaultRole
+          })
+          .select()
+          .maybeSingle();
+
         setProfile({
           id: userId,
-          full_name: metadata?.full_name || email || 'Faculty Member',
-          role: (metadata?.role as UserRole) || 'faculty'
+          full_name: inserted?.full_name || defaultName,
+          role: (inserted?.role as UserRole) || defaultRole
         });
       }
     } catch (err) {
-      console.error('Error fetching profile:', err);
-      // Graceful fallback using whatever metadata we have
+      console.error('Error syncing user profile:', err);
       setProfile({
         id: userId,
-        full_name: metadata?.full_name || email || 'Faculty Member',
+        full_name: metadata?.full_name || (email ? email.split('@')[0] : '') || 'User',
         role: (metadata?.role as UserRole) || 'faculty'
       });
     } finally {
@@ -243,6 +236,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data.user) {
           setUser({ id: data.user.id, email: data.user.email ?? '' });
           setProfile({ id: data.user.id, full_name: fullName, role: role });
+
+          // Ensure profile row exists in database immediately
+          await supabase.from('profiles').upsert({
+            id: data.user.id,
+            full_name: fullName,
+            role: role
+          });
         }
       } else {
         // Mock sign up

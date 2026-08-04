@@ -89,12 +89,12 @@ function validateCrossword(result: CrosswordGenerationResult) {
   }
 }
 
-function generateDemoCrossword(
+function generateLocalCrossword(
   topic: string,
   content: string,
   numQuestions: number
 ): CrosswordGenerationResult {
-  console.log("🎯 Smart DEMO mode - Generating locally...");
+  console.log("⚡ Generating crossword from topic & content locally...");
 
   let validWords: Array<{ word: string; clue: string }> = [];
   const cleanTopic = (topic || "").toLowerCase().trim();
@@ -143,57 +143,102 @@ function generateDemoCrossword(
     validWords = generated.filter(item => item.word.length >= 3 && item.word.length <= 15);
   }
 
-  // Topic specific dictionaries for common educational subjects
+  // Topic specific dictionaries for educational subjects
   const scienceWords = [
     { word: "GRAVITY", clue: "Force that attracts bodies toward the center of the earth" },
     { word: "ENERGY", clue: "The quantitative property that must be transferred to an object" },
     { word: "ATOM", clue: "The basic unit of a chemical element" },
-    { word: "ELECTRON", clue: "A subatomic particle with a charge of negative electricity" },
+    { word: "ELECTRON", clue: "A subatomic particle with a negative electric charge" },
     { word: "FORCE", clue: "Strength or energy as an attribute of physical action" },
-    { word: "EVOLUTION", clue: "The process by which different kinds of living organisms developed" },
-    { word: "GENETICS", clue: "The study of heredity and the variation of inherited characteristics" },
-    { word: "PHOTOSYNTHESIS", clue: "The process by which green plants use sunlight to synthesize nutrients" },
-    { word: "CELL", clue: "The smallest structural and functional unit of an organism" },
+    { word: "EVOLUTION", clue: "The process by which organisms develop over generations" },
+    { word: "GENETICS", clue: "The study of heredity and inherited characteristics" },
+    { word: "PHOTOSYNTHESIS", clue: "Process by which green plants synthesize nutrients using sunlight" },
+    { word: "CELL", clue: "The basic structural and functional unit of life" },
     { word: "MOLECULE", clue: "A group of atoms bonded together" }
   ];
 
   const computerWords = [
-    { word: "ALGORITHM", clue: "A process or set of rules to be followed in calculations" },
-    { word: "DATABASE", clue: "A structured set of data held in a computer" },
-    { word: "COMPILER", clue: "A program that translates code into machine language" },
-    { word: "NETWORK", clue: "A group of two or more computer systems linked together" },
-    { word: "VARIABLE", clue: "A value or storage location that can change during execution" },
-    { word: "INTERFACE", clue: "A point where two systems or subjects meet and interact" },
-    { word: "INTERNET", clue: "A global computer network providing information and communication" },
-    { word: "FUNCTION", clue: "A block of code that performs a specific task" },
-    { word: "SECURITY", clue: "Protection of computer systems from theft or damage" },
-    { word: "HARDWARE", clue: "The physical parts of a computer system" }
+    { word: "ALGORITHM", clue: "A step-by-step procedure for solving a problem" },
+    { word: "DATABASE", clue: "A structured collection of data stored electronically" },
+    { word: "COMPILER", clue: "Program that translates source code into machine language" },
+    { word: "NETWORK", clue: "A group of interconnected computer systems" },
+    { word: "VARIABLE", clue: "A storage location paired with an associated symbolic name" },
+    { word: "INTERFACE", clue: "A shared boundary across which two components exchange information" },
+    { word: "INTERNET", clue: "A global network providing communication and information" },
+    { word: "FUNCTION", clue: "A block of organized, reusable code used to perform an action" },
+    { word: "SECURITY", clue: "Protection of computer systems from unauthorized access" },
+    { word: "HARDWARE", clue: "The physical components of a computer system" },
+    { word: "RECURSION", clue: "A function calling itself to break down a problem" },
+    { word: "POINTER", clue: "A variable that holds the memory address of another value" },
+    { word: "THREAD", clue: "The smallest sequence of programmed instructions managed by OS" },
+    { word: "KERNEL", clue: "The core component of an operating system" },
+    { word: "OBJECT", clue: "An instance of a class containing data and code" }
+  ];
+
+  const mathWords = [
+    { word: "EQUATION", clue: "A statement that the values of two mathematical expressions are equal" },
+    { word: "CALCULUS", clue: "Branch of mathematics that studies continuous change" },
+    { word: "MATRIX", clue: "A rectangular array of numbers arranged in rows and columns" },
+    { word: "VECTOR", clue: "A quantity having direction as well as magnitude" },
+    { word: "THEOREM", clue: "A general proposition not self-evident but proved by reasoning" },
+    { word: "FRACTION", clue: "A numerical quantity that is not a whole number" },
+    { word: "GEOMETRY", clue: "Branch of mathematics concerned with properties of space" },
+    { word: "ALGEBRA", clue: "Branch of mathematics dealing with symbols and rules for manipulating them" },
+    { word: "POLYNOMIAL", clue: "An expression consisting of variables and coefficients" },
+    { word: "PROBABILITY", clue: "The likelihood or chance of an event occurring" }
+  ];
+
+  const historyWords = [
+    { word: "REVOLUTION", clue: "A forcible overthrow of a government or social order" },
+    { word: "EMPIRE", clue: "An extensive group of states under a single supreme authority" },
+    { word: "CONSTITUTION", clue: "A body of fundamental principles according to which a state is governed" },
+    { word: "TREATY", clue: "A formally concluded and ratified agreement between countries" },
+    { word: "DEMOCRACY", clue: "System of government by the whole population or eligible members" },
+    { word: "COLONY", clue: "A country or area under full or partial political control of another" },
+    { word: "MONARCHY", clue: "A form of government with a monarch at the head" },
+    { word: "HERITAGE", clue: "Valued objects and qualities such as historic buildings passed down generations" }
   ];
 
   const defaultWords = [
-    { word: "THEORY", clue: "A system of ideas explaining something" },
-    { word: "CONCEPT", clue: "An abstract idea or general notion" },
-    { word: "ANALYSIS", clue: "Detailed examination of elements" },
-    { word: "METHOD", clue: "A particular procedure for doing something" },
-    { word: "PROCESS", clue: "A series of actions to achieve a result" },
-    { word: "SYSTEM", clue: "A set of connected things forming a whole" },
-    { word: "FUNCTION", clue: "An activity natural to something" },
-    { word: "STRUCTURE", clue: "The arrangement of parts in something" },
-    { word: "PRINCIPLE", clue: "A fundamental truth or proposition" },
-    { word: "RESEARCH", clue: "Systematic investigation to establish facts" },
-    { word: "STUDY", clue: "The devotion of time to acquiring knowledge" },
-    { word: "LEARNING", clue: "The acquisition of knowledge or skills" },
+    { word: "THEORY", clue: "A system of ideas explaining a subject" },
+    { word: "CONCEPT", clue: "An abstract idea or fundamental notion" },
+    { word: "ANALYSIS", clue: "Detailed examination of elements or structure" },
+    { word: "METHOD", clue: "A particular procedure for accomplishing something" },
+    { word: "PROCESS", clue: "A series of actions taken to achieve an end" },
+    { word: "SYSTEM", clue: "A set of connected things forming a complex whole" },
+    { word: "FUNCTION", clue: "An activity or purpose natural to a thing" },
+    { word: "STRUCTURE", clue: "The arrangement of parts in a complex entity" },
+    { word: "PRINCIPLE", clue: "A fundamental truth serving as foundation" },
+    { word: "RESEARCH", clue: "Systematic investigation into materials and sources" },
+    { word: "LEARNING", clue: "Acquisition of knowledge or skills through study" },
     { word: "KNOWLEDGE", clue: "Facts and information acquired through experience" },
     { word: "ACADEMIC", clue: "Relating to education and scholarship" },
-    { word: "EDUCATION", clue: "The process of receiving systematic instruction" },
+    { word: "LOGIC", clue: "Reasoning conducted according to strict principles" }
   ];
 
   // Select dictionary based on topic
   let selectedDictionary = defaultWords;
-  if (cleanTopic.includes("computer") || cleanTopic.includes("code") || cleanTopic.includes("programming") || cleanTopic.includes("software")) {
+  if (cleanTopic.match(/computer|code|programming|software|data|algorithm|operating|network|web|tech|system/)) {
     selectedDictionary = computerWords;
-  } else if (cleanTopic.includes("science") || cleanTopic.includes("physic") || cleanTopic.includes("chem") || cleanTopic.includes("biology")) {
+  } else if (cleanTopic.match(/science|physic|chem|biology|cell|atom|genet/)) {
     selectedDictionary = scienceWords;
+  } else if (cleanTopic.match(/math|algebra|calculus|stat|matrix|geo/)) {
+    selectedDictionary = mathWords;
+  } else if (cleanTopic.match(/history|gov|civic|politi|social|war/)) {
+    selectedDictionary = historyWords;
+  }
+
+  // Extract terms directly from the topic title itself
+  if (topic) {
+    const topicTokens = topic.toUpperCase().replace(/[^A-Z\s]/g, ' ').split(/\s+/).filter(w => w.length >= 3 && w.length <= 12);
+    topicTokens.forEach(token => {
+      if (!validWords.some(v => v.word === token)) {
+        validWords.push({
+          word: token,
+          clue: `Core term directly defining the topic "${topic}"`
+        });
+      }
+    });
   }
 
   while (validWords.length < numQuestions) {
@@ -201,9 +246,10 @@ function generateDemoCrossword(
     if (!validWords.some(w => w.word === item.word)) {
       validWords.push(item);
     } else {
+      const altWord = `KEY${validWords.length + 1}TERM`;
       validWords.push({
-        word: `CONCEPT${validWords.length + 1}`,
-        clue: `Key subject concept number ${validWords.length + 1}`
+        word: altWord.slice(0, 10),
+        clue: `Important concept associated with ${topic || 'this subject'}`
       });
     }
   }
@@ -212,7 +258,7 @@ function generateDemoCrossword(
   const arranged = generateLayout(selectedWords, selectedWords.length);
 
   return {
-    title: topic || "Generated Crossword",
+    title: topic || "Generated Assessment",
     subject: topic || "General Studies",
     questions: arranged.map(p => ({
       word: p.word,
@@ -231,15 +277,18 @@ export const generateCrossword = async (
   fileData?: FileData
 ): Promise<CrosswordGenerationResult> => {
   try {
-    if (apiKey === "DEMO" || !apiKey) {
-      throw new Error("DEMO mode active");
+    if (!apiKey) {
+      console.warn("⚠️ VITE_GEMINI_API_KEY is not configured. Using local topic generator.");
+      return generateLocalCrossword(topic, content, numQuestions);
     }
 
-    // Use gemini-1.5-flash for maximum stability and speed
     const modelId = "gemini-1.5-flash";
 
-    // ---- STAGE 1: Technical Term Extraction (RAG) ----
-    const stage1Prompt = `
+    // ---- STAGE 1: Technical Term Extraction (RAG) or Topic Generation ----
+    const hasStudyMaterial = Boolean(content && content.trim().length > 0) || Boolean(fileData);
+
+    const stage1Prompt = hasStudyMaterial
+      ? `
       You are an expert curriculum designer and educator.
       Extract exactly ${Math.min(25, numQuestions * 2)} key technical terms and concepts from the provided study materials below.
       
@@ -253,6 +302,23 @@ export const generateCrossword = async (
       {
         "terms": [
           { "word": "ALGORITHM", "definition": "A step-by-step procedure for solving a problem." }
+        ]
+      }
+    `
+      : `
+      You are an expert curriculum designer and educator.
+      Generate exactly ${Math.min(25, numQuestions * 2)} key technical terms, core concepts, and accurate definition clues for the educational topic: "${topic || 'General Knowledge'}".
+      
+      Requirements for each generated term:
+      1. MUST be a single word (no spaces, hyphens, or special characters).
+      2. Length MUST be between 3 and 12 letters long.
+      3. MUST be directly relevant to the core concepts of "${topic || 'General Knowledge'}".
+      4. Each term must have a clear, informative definition clue suitable for a student crossword puzzle (max 120 chars).
+      
+      Format the response strictly as a JSON object matching this schema:
+      {
+        "terms": [
+          { "word": "TERM", "definition": "A clear definition clue for this topic." }
         ]
       }
     `;
@@ -279,51 +345,54 @@ export const generateCrossword = async (
       safetySettings,
       generationConfig: {
         responseMimeType: "application/json",
-        responseSchema: {
-          type: SchemaType.OBJECT,
-          properties: {
-            terms: {
-              type: SchemaType.ARRAY,
-              items: {
-                type: SchemaType.OBJECT,
-                properties: {
-                  word: { type: SchemaType.STRING },
-                  definition: { type: SchemaType.STRING },
-                },
-                required: ["word", "definition"],
-              },
-            },
-          },
-          required: ["terms"],
-        },
       },
     });
 
-    console.log("Stage 1: Extracting terms...");
+    console.log("Stage 1: Generating terms for topic/content:", topic);
     const stage1Result = await stage1Model.generateContent(stage1Parts);
 
     if (!stage1Result.response?.candidates?.[0]) {
       throw new Error("Stage 1 failed: No response candidates found. Content may have been blocked by safety filters.");
     }
 
-    const termsText = stage1Result.response.text();
-    const { terms } = JSON.parse(termsText);
-    console.log(`Stage 1: Extracted ${terms.length} terms.`);
+    let termsText = stage1Result.response.text().trim();
+    console.log("Raw Gemini Response Snippet:", termsText.substring(0, 200));
+
+    // Strip markdown code fences if present
+    termsText = termsText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+
+    let parsedData: any = {};
+    try {
+      parsedData = JSON.parse(termsText);
+    } catch (parseErr) {
+      // Fallback regex to extract JSON object or array
+      const jsonMatch = termsText.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+      if (jsonMatch) {
+        parsedData = JSON.parse(jsonMatch[0]);
+      } else {
+        throw parseErr;
+      }
+    }
+
+    const terms = Array.isArray(parsedData) ? parsedData : (parsedData.terms || parsedData.questions || []);
+    console.log(`Stage 1: Successfully generated ${terms.length} terms.`);
 
     // ---- STAGE 2: Client-side Crossword Layout Generation ----
-    console.log("Stage 2: Generating crossword layout client-side...");
+    console.log("Stage 2: Generating crossword layout...");
     
     const wordItems = terms.map((t: any) => ({
-      word: t.word,
-      clue: t.definition,
-    }));
+      word: ((t.word || t.term || "").toUpperCase().replace(/[^A-Z]/g, "")),
+      clue: t.definition || t.clue || t.description || "",
+    })).filter((t: any) => t.word.length >= 3 && t.word.length <= 12 && t.clue.length > 0);
+
+    if (wordItems.length === 0) {
+      throw new Error("No valid terms were generated for this topic.");
+    }
 
     const placedQuestions = generateLayout(wordItems, numQuestions);
 
-    if (placedQuestions.length < Math.min(5, numQuestions)) {
-      throw new Error(
-        `Could only place ${placedQuestions.length} words. Please try again with a longer document or a different topic.`
-      );
+    if (placedQuestions.length === 0) {
+      throw new Error("Could not place generated words into grid. Please try again.");
     }
 
     return {
@@ -333,7 +402,8 @@ export const generateCrossword = async (
     };
 
   } catch (err) {
-    console.warn("⚠️ Gemini API generation failed. Falling back to local Smart generation:", err);
-    return generateDemoCrossword(topic, content, numQuestions);
+    console.warn("⚠️ Gemini API generation failed or returned invalid format. Falling back to local topic generator:", err);
+    return generateLocalCrossword(topic, content, numQuestions);
   }
 };
+

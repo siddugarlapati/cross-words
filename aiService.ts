@@ -176,9 +176,11 @@ export const generateCrossword = async (
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
-    const contentSnippet = content.substring(0, 20000);
+    const hasContent = Boolean(content && content.trim().length > 0) || Boolean(fileData);
+    const contentSnippet = content ? content.substring(0, 20000) : "";
 
-    const prompt = `You are an expert educational content analyst. Your task is to extract EXACTLY ${numQuestions} key technical terms from the document content provided below and write precise, accurate clues for each term.
+    const prompt = hasContent
+      ? `You are an expert educational content analyst. Your task is to extract EXACTLY ${numQuestions} key technical terms from the document content provided below and write precise, accurate clues for each term.
 
 DOCUMENT CONTENT:
 """
@@ -194,7 +196,18 @@ STRICT RULES — follow every rule exactly:
 6. Return ONLY a raw JSON array — no markdown, no explanation, no code block. Format:
 [{"word": "TERM", "clue": "Short definition from the document"}]
 
-Extract ${numQuestions} terms now:`;
+Extract ${numQuestions} terms now:`
+      : `You are an expert curriculum designer and educator. Your task is to generate EXACTLY ${numQuestions} key technical terms and definition clues for the subject/topic: "${topic || 'General Knowledge'}".
+
+STRICT RULES — follow every rule exactly:
+1. Choose the most important domain-specific technical terms, core concepts, or definitions for topic: "${topic || 'General Knowledge'}".
+2. Each term must be a SINGLE WORD, between 3 and 15 uppercase letters, containing ONLY A-Z characters (no spaces, hyphens, numbers).
+3. The clue for each term must be an accurate, concise definition (under 12 words) explaining the term in the context of "${topic || 'General Knowledge'}".
+4. Do NOT use the word itself in its own clue.
+5. Return ONLY a raw JSON array — no markdown, no explanation, no code block. Format:
+[{"word": "TERM", "clue": "Short accurate definition"}]
+
+Generate ${numQuestions} terms for topic "${topic}" now:`;
 
     const parts: Part[] = [{ text: prompt }];
 

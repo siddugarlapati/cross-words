@@ -31,7 +31,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; facultyOnly?: boolea
     return <Navigate to="/login" replace />;
   }
 
-  const role = profile?.role || (user.email === 'admin@anurag.edu.in' ? 'admin' : 'faculty');
+  const role = profile?.role || 'faculty';
 
   if (adminOnly && role !== 'admin') {
     return (

@@ -131,14 +131,34 @@ export const db = {
     if (supabase) {
       const { data: { user } } = await supabase.auth.getUser();
 
-      let query = supabase.from('assessments').select('*');
-      if (user?.id && user?.email) {
-        query = query.or(`faculty_id.eq.${user.id},faculty_email.eq.${user.email},faculty_name.ilike.%${facultyName || ''}%`);
-      } else if (facultyName) {
-        query = query.ilike('faculty_name', `%${facultyName}%`);
-      }
+      const cleanName = (facultyName || '').trim();
+      let data: any[] | null = null;
+      let error: any = null;
 
-      const { data, error } = await query.order('created_at', { ascending: false });
+      if (user?.id) {
+        // First try matching user ID or email
+        const filterStr = user.email 
+          ? (cleanName ? `faculty_id.eq.${user.id},faculty_email.eq.${user.email},faculty_name.ilike.%${cleanName}%` : `faculty_id.eq.${user.id},faculty_email.eq.${user.email}`)
+          : (cleanName ? `faculty_id.eq.${user.id},faculty_name.ilike.%${cleanName}%` : `faculty_id.eq.${user.id}`);
+        
+        const res = await supabase.from('assessments').select('*').or(filterStr).order('created_at', { ascending: false });
+        data = res.data;
+        error = res.error;
+
+        // Fallback query if OR filter fails
+        if (error) {
+          console.warn('Primary query failed, running fallback assessment fetch:', error);
+          const fbRes = await supabase.from('assessments').select('*').eq('faculty_id', user.id).order('created_at', { ascending: false });
+          data = fbRes.data;
+          error = fbRes.error;
+        }
+      } else if (cleanName.length > 0) {
+        const res = await supabase.from('assessments').select('*').ilike('faculty_name', `%${cleanName}%`).order('created_at', { ascending: false });
+        data = res.data;
+        error = res.error;
+      } else {
+        return [];
+      }
 
       if (error) {
         console.error('Error fetching assessments:', error);
@@ -148,7 +168,6 @@ export const db = {
       return data || [];
     } else {
       // LocalStorage Fallback
-      // If mock user is logged in, filter by their profile name (or fallback to searching name)
       const mockUserStr = localStorage.getItem(STORAGE_KEYS.MOCK_LOGGED_USER);
       let filterName = facultyName.toLowerCase();
       
@@ -192,14 +211,12 @@ export const db = {
         assessment_id: code,
         roll_number: rollNo,
         student_name: response.student_name,
-        student_email: response.student_email,
+        student_email: response.student_email || null,
+        answers_json: response.answers_json || null,
         score: response.score,
         total_questions: response.total_questions,
         time_taken: response.time_taken
       });
-
-      if (error) throw error;
-      return id;
 
       if (error) throw error;
       return id;
@@ -320,10 +337,17 @@ export const db = {
       if (error) return [];
       return data || [];
     } else {
-      return [
-        { id: '1', full_name: 'Professor Anurag', email: 'faculty@anurag.edu.in', role: 'faculty' },
-        { id: '2', full_name: 'Super Admin', email: 'admin@anurag.edu.in', role: 'admin' }
-      ];
+      const dbStr = localStorage.getItem('autocross_mock_users_db');
+      if (dbStr) {
+        const users = JSON.parse(dbStr);
+        return users.map((u: any) => ({
+          id: u.id,
+          full_name: u.fullName || u.full_name || u.email,
+          email: u.email,
+          role: u.role || 'faculty'
+        }));
+      }
+      return [];
     }
   },
 
