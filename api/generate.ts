@@ -204,15 +204,11 @@ async function generateCrosswordFast(
   requestId = ''
 ): Promise<{ word: string; clue: string }[]> {
   const parts: any[] = [
-    `You are an expert educational content generator. Generate crossword puzzle terms for "${topic}".\n\n` +
-    `Requirements:\n` +
-    `1. Generate exactly ${Math.max(numQuestions * 4, 20)} single-word terms related to "${topic}".\n` +
-    `2. "word": Single word only (A-Z uppercase, 3-15 letters, no spaces/hyphens/numbers). Include both technical terms and related concepts.\n` +
-    `3. "clue": Brief definition or description (10-120 characters). Do not include the answer word in the clue.\n\n` +
-    `Examples for cyber security:\n` +
-    `[{"word":"FIREWALL","clue":"Network security system that monitors traffic"},{"word":"ENCRYPTION","clue":"Process of encoding information"},{"word":"MALWARE","clue":"Malicious software designed to harm"}]\n\n` +
-    `Return ONLY raw JSON array:\n` +
-    `[{"word":"TERM","clue":"Definition"}]`
+    `Generate ${Math.max(numQuestions * 4, 25)} crossword puzzle words about "${topic}". ` +
+    `Return a JSON array of objects with "word" (single uppercase word, 3-15 letters, A-Z only) and "clue" (short definition).\n\n` +
+    `Example for cyber security:\n` +
+    `[{"word":"FIREWALL","clue":"Network security barrier"},{"word":"VIRUS","clue":"Malicious software program"},{"word":"ENCRYPTION","clue":"Data protection method"},{"word":"PASSWORD","clue":"Authentication credential"},{"word":"HACKER","clue":"Unauthorized system intruder"}]\n\n` +
+    `Generate ${Math.max(numQuestions * 4, 25)} words about "${topic}" in this exact JSON format:`
   ];
   if (fileData) {
     const b64 = fileData.data.split(',');
@@ -222,7 +218,11 @@ async function generateCrosswordFast(
   }
 
   const text = await callSDK(parts, requestId);
+  console.log(`[${requestId}] Gemini response length: ${text.length} chars`);
+  
   const list: any[] = Array.isArray(parseJSON(text)) ? parseJSON(text) : [];
+  console.log(`[${requestId}] Parsed ${list.length} items from Gemini response`);
+  
   const validPairs: { word: string; clue: string }[] = [];
   const seen = new Set<string>();
 
@@ -241,6 +241,7 @@ async function generateCrosswordFast(
     validPairs.push({ word: w, clue: c });
   }
 
+  console.log(`[${requestId}] After validation: ${validPairs.length} valid pairs`);
   return validPairs;
 }
 
