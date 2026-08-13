@@ -189,8 +189,9 @@ async function callSDK(
       keyPool.markCooldown(activeKey, 60_000);
     }
     if (attempt < 2) {
-      const delay = Math.floor(400 * 1.5 ** attempt + Math.random() * 200);
-      console.warn(`[${requestId}] SDK model ${activeModelName} call failed (${msg}). Attempt ${attempt + 1}, retrying in ${delay}ms...`);
+      const baseDelay = isQuotaOrAuth ? 1500 : 400;
+      const delay = Math.floor(baseDelay * 1.5 ** attempt + Math.random() * 250);
+      console.warn(`[${requestId}] SDK model ${activeModelName} call failed (${msg}). Attempt ${attempt + 1}, retrying in ${delay}ms with model ${SUPPORTED_MODELS[(attempt + 1) % SUPPORTED_MODELS.length]}...`);
       await new Promise(r => setTimeout(r, delay));
       return callSDK(parts, requestId, attempt + 1);
     }

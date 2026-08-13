@@ -29,14 +29,22 @@ export const generateCrossword = async (
     throw new Error('Number of questions must be between 3 and 30.');
 
   let res: Response;
-  try {
-    res = await fetch('/api/generate', {
+  const executeFetch = async () => {
+    return fetch('/api/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ topic: cleanTopic, content, questionsCount: numQuestions, fileData }),
     });
+  };
+
+  try {
+    res = await executeFetch();
+    if (res.status === 503 || res.status === 429) {
+      // Auto-retry once after short 2s backoff on AI service traffic surges
+      await new Promise(r => setTimeout(r, 2000));
+      res = await executeFetch();
+    }
   } catch (err: any) {
-    // Network error (no server, proxy not running, etc.)
     throw new Error(
       `Could not reach the generation service. ` +
       `If running locally, make sure the API server is running (npm run dev:server). ` +
@@ -47,7 +55,6 @@ export const generateCrossword = async (
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    // Map server error codes to clean user messages
     const serverMessage = data?.message ?? `Generation service error (HTTP ${res.status})`;
     throw new Error(serverMessage);
   }
