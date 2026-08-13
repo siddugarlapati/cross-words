@@ -8,7 +8,7 @@ AutoCross-Edu transforms syllabus topics, lecture notes, and course PDF document
 ## 🌟 Key Features
 
 ### 🎓 Faculty Assessment Creator
-- **AI Word & Clue Extraction**: Powered by Google Gemini AI (`gemini-1.5-flash`) to generate technical terms and academic definitions directly from syllabus text or uploaded PDF/DOCX files.
+- **AI Word & Clue Extraction**: Powered by Google Gemini AI (`gemini-flash-latest`) to generate technical terms and academic definitions directly from syllabus text or uploaded PDF/DOCX files.
 - **Academic Year & Section Support**: Configure target Academic Year (*1st Year - 4th Year, PG*) and Class Section (*Section A, CSE-1, etc.*).
 - **Scheduled Releases & Deadlines**: Set future assessment start times and submission deadlines.
 - **Live Grid Preview & Auto-Arrange**: Dynamic crossword layout generator (`layoutGenerator.ts`) with visual grid preview and collision detection.

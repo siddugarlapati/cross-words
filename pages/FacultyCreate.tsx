@@ -39,7 +39,6 @@ const FacultyCreate: React.FC = () => {
   const [generationLogs, setGenerationLogs] = useState<any>(null);
   const [showLogs, setShowLogs] = useState(false);
   const [generationError, setGenerationError] = useState<string | null>(null);
-  const [customApiKey, setCustomApiKey] = useState<string>('');
 
   // Pre-fill faculty details
   useEffect(() => {
@@ -130,8 +129,7 @@ const FacultyCreate: React.FC = () => {
         effectiveTopic || 'General Knowledge',
         passContent,
         formData.questionsCount,
-        passFile,
-        customApiKey
+        passFile
       );
 
       setQuestions(aiResult.questions);
@@ -864,33 +862,11 @@ const FacultyCreate: React.FC = () => {
 
         {/* Inline generation error — replaces alert() */}
         {generationError && (
-          <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-2xl px-4 py-3.5 text-sm animate-fade-in space-y-2">
+          <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-2xl px-4 py-3.5 text-sm animate-fade-in">
             <span className="text-red-500 mt-0.5 shrink-0">⚠️</span>
             <div className="flex-1">
               <p className="font-bold text-xs uppercase tracking-wider text-red-700 mb-0.5">Generation Failed</p>
               <p className="leading-relaxed">{generationError}</p>
-
-              {/* Optional Key Input if Auth Error */}
-              {(generationError.includes('authentication') || generationError.includes('API key')) && (
-                <div className="mt-3 pt-2 border-t border-red-200">
-                  <label className="text-[11px] font-bold text-red-800 uppercase block mb-1">Enter Google AI Studio Key (AIza...)</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      placeholder="Paste AIza... key"
-                      value={customApiKey}
-                      onChange={(e) => setCustomApiKey(e.target.value)}
-                      className="flex-1 text-xs px-3 py-1.5 rounded-lg border border-red-300 bg-white focus:outline-none focus:ring-1 focus:ring-red-500"
-                    />
-                    <button
-                      type="submit"
-                      className="bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
-                    >
-                      Retry with Key
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
             <button
               type="button"

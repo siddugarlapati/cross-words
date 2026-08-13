@@ -19,8 +19,7 @@ export const generateCrossword = async (
   topic: string,
   content: string,
   numQuestions: number,
-  fileData?: FileData,
-  customApiKey?: string
+  fileData?: FileData
 ): Promise<CrosswordGenerationResult> => {
   const cleanTopic = (topic || 'General Knowledge').trim();
 
@@ -31,15 +30,10 @@ export const generateCrossword = async (
 
   let res: Response;
   try {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (customApiKey?.trim()) {
-      headers['x-gemini-api-key'] = customApiKey.trim();
-    }
-
     res = await fetch('/api/generate', {
       method: 'POST',
-      headers,
-      body: JSON.stringify({ topic: cleanTopic, content, questionsCount: numQuestions, fileData, apiKey: customApiKey }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic: cleanTopic, content, questionsCount: numQuestions, fileData }),
     });
   } catch (err: any) {
     // Network error (no server, proxy not running, etc.)
