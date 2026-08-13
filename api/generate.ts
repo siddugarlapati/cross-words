@@ -144,16 +144,8 @@ const STOP_WORDS = new Set([
 ]);
 
 const GENERIC_WORDS = new Set([
-  'ANALYSIS','SYSTEM','METHOD','CONCEPT','THEORY','COMPONENT','PROCESS','APPROACH',
-  'TECHNIQUE','MECHANISM','STRUCTURE','FUNCTION','ELEMENT','FACTOR','ASPECT','FEATURE',
-  'PROPERTY','ATTRIBUTE','PARAMETER','DEFINITION','EXAMPLE','OVERVIEW','SUMMARY',
   'INTRODUCTION','CONCLUSION','SECTION','CHAPTER','TOPIC','SUBJECT','STUDY','RESEARCH',
-  'REVIEW','FRAMEWORK','PATTERN','PRINCIPLE','STRATEGY','SOLUTION','RESULT',
-  'OUTPUT','INPUT','OBJECT','CLASS','MODULE','PACKAGE','OPERATION','PROCEDURE',
-  'PROGRAM','APPLICATION','SOFTWARE','HARDWARE','IMPLEMENTATION','DESIGN','ARCHITECTURE',
-  'INTERFACE','PROTOCOL','PERFORMANCE','EFFICIENCY','ACCURACY','QUALITY','STANDARD',
-  'LEVEL','BASIC','SIMPLE','GENERAL','COMMON','NORMAL','TYPICAL','RELATED',
-  'INFORMATION','KNOWLEDGE','UNDERSTANDING','LEARNING','TEACHING',
+  'REVIEW','EXAMPLE','OVERVIEW','SUMMARY',
 ]);
 
 function isClean(word: string): boolean {
@@ -212,13 +204,15 @@ async function generateCrosswordFast(
   requestId = ''
 ): Promise<{ word: string; clue: string }[]> {
   const parts: any[] = [
-    `You are an expert university curriculum generator. Generate a high-quality educational crossword puzzle for university students studying "${topic}".\n\n` +
+    `You are an expert educational content generator. Generate crossword puzzle terms for "${topic}".\n\n` +
     `Requirements:\n` +
-    `1. Generate at least ${Math.max(numQuestions * 3, 15)} concrete single-word technical terms & clue pairs.\n` +
-    `2. "word": Single word only (A-Z, 3–15 uppercase letters, no spaces/hyphens/numbers). Must be a concrete, specific technical term directly related to "${topic}".\n` +
-    `3. "clue": 10–120 characters, academic definition/question. Crucial: The clue text MUST NOT mention or contain the target word itself or any stem of it.\n\n` +
-    `Return ONLY raw JSON array of objects following this exact schema format:\n` +
-    `[{"word":"<TOPIC-SPECIFIC-TERM>","clue":"<ACCURATE-CLUE-FOR-TERM>"}]`
+    `1. Generate exactly ${Math.max(numQuestions * 4, 20)} single-word terms related to "${topic}".\n` +
+    `2. "word": Single word only (A-Z uppercase, 3-15 letters, no spaces/hyphens/numbers). Include both technical terms and related concepts.\n` +
+    `3. "clue": Brief definition or description (10-120 characters). Do not include the answer word in the clue.\n\n` +
+    `Examples for cyber security:\n` +
+    `[{"word":"FIREWALL","clue":"Network security system that monitors traffic"},{"word":"ENCRYPTION","clue":"Process of encoding information"},{"word":"MALWARE","clue":"Malicious software designed to harm"}]\n\n` +
+    `Return ONLY raw JSON array:\n` +
+    `[{"word":"TERM","clue":"Definition"}]`
   ];
   if (fileData) {
     const b64 = fileData.data.split(',');
@@ -237,9 +231,11 @@ async function generateCrosswordFast(
     const c = (item.clue || '').trim();
     if (!w || w.length < 3 || w.length > 15 || seen.has(w)) continue;
     if (!isClean(w)) continue;
-    if (!c || c.length < 10 || c.length > 120) continue;
-    const esc = w.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-    if (new RegExp(`\\b${esc}\\w*\\b`, 'i').test(c)) continue;
+    if (!c || c.length < 8 || c.length > 150) continue;
+    
+    // More lenient word-in-clue check: only reject if exact word appears
+    const clueUpper = c.toUpperCase();
+    if (clueUpper.includes(` ${w} `) || clueUpper.startsWith(`${w} `) || clueUpper.endsWith(` ${w}`)) continue;
 
     seen.add(w);
     validPairs.push({ word: w, clue: c });
@@ -258,14 +254,14 @@ async function runPipeline(
   console.log(`[${requestId}] Running domain-agnostic generation pipeline for topic "${topic}"`);
   const candidates = await generateCrosswordFast(topic, content, numQuestions, fileData, requestId);
 
-  if (candidates.length < Math.min(numQuestions, 3)) {
-    throw new Error(`Could not generate enough valid terms for "${topic}". Try a more specific topic or upload study material.`);
+  if (candidates.length < Math.min(numQuestions / 2, 3)) {
+    throw new Error(`Could not generate enough valid terms for "${topic}". Generated ${candidates.length} terms but need at least ${Math.min(numQuestions / 2, 3)}. Try uploading study material or use a more common topic.`);
   }
 
   console.log(`[${requestId}] Generating grid layout for ${candidates.length} candidate terms`);
   const placed = generateLayout(candidates, numQuestions);
-  if (placed.length < Math.min(numQuestions, 3)) {
-    throw new Error(`Could only place ${placed.length}/${numQuestions} words in the grid. Try a different topic or word count.`);
+  if (placed.length < Math.min(numQuestions / 2, 3)) {
+    throw new Error(`Could only place ${placed.length}/${numQuestions} words in the grid. Generated ${candidates.length} terms but grid layout needs more compatible words. Try a different topic or adjust question count.`);
   }
 
   return {
