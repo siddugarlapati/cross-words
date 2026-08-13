@@ -31,7 +31,7 @@ const SUPPORTED_MODELS    = [PRIMARY_TEXT_MODEL, FALLBACK_TEXT_MODEL];
 
 const MAX_CONCURRENT  = 10;
 const CACHE_TTL_HOURS = 24;
-const REQUEST_TIMEOUT = 55_000;
+const REQUEST_TIMEOUT = 12_000;
 
 let activeRequests = 0;
 
@@ -173,6 +173,7 @@ async function callSDK(
     generationConfig: {
       responseMimeType: 'application/json',
       temperature: 0.1,
+      maxOutputTokens: 1024,
     },
   });
 
@@ -187,8 +188,8 @@ async function callSDK(
     if (isQuotaOrAuth) {
       keyPool.markCooldown(activeKey, 60_000);
     }
-    if (attempt < 3) {
-      const delay = Math.floor(1000 * 1.5 ** attempt + Math.random() * 500);
+    if (attempt < 2) {
+      const delay = Math.floor(400 * 1.5 ** attempt + Math.random() * 200);
       console.warn(`[${requestId}] SDK model ${activeModelName} call failed (${msg}). Attempt ${attempt + 1}, retrying in ${delay}ms...`);
       await new Promise(r => setTimeout(r, delay));
       return callSDK(parts, requestId, attempt + 1);
