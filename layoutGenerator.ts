@@ -14,48 +14,99 @@ export interface PlacedWord {
 }
 
 /**
+ * Mulberry32 — a fast, portable, deterministic seeded PRNG.
+ * Produces identical output on every platform, no integer overflow issues.
+ * Returns a function that yields the next pseudo-random float [0, 1).
+ */
+export function createSeededRandom(seed: number): () => number {
+  let s = seed >>> 0; // ensure 32-bit unsigned
+  return function () {
+    s |= 0;
+    s = (s + 0x6d2b79f5) | 0;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Fisher-Yates shuffle using a seeded PRNG (unbiased).
+ */
+export function seededShuffle<T>(array: T[], rng: () => number): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Stable hash for a string → 32-bit unsigned integer seed.
+ * Uses the same djb2 algorithm but avoids signed integer overflow
+ * by always masking to 32-bit unsigned.
+ */
+export function stringToSeed(str: string): number {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (Math.imul(31, h) + str.charCodeAt(i)) >>> 0;
+  }
+  return h;
+}
+
+/**
  * Generates a connected crossword grid layout from a list of words and clues.
- * Uses a deterministic backtracking algorithm to ensure all words intersect properly
- * and adhere to crossword rules.
+ *
+ * Rules enforced:
+ * - All placed words must intersect with at least one already-placed word.
+ * - No letter conflicts at intersections.
+ * - No parallel adjacent words touching without a proper crossing.
+ * - No floating/disconnected words.
+ * - Words must be 3-15 uppercase A-Z characters.
+ *
+ * Returns only the words that could be validly placed (may be fewer than input).
  */
 export function generateLayout(
   wordItems: WordItem[],
   targetCount: number
 ): PlacedWord[] {
-  // 1. Clean words (uppercase A-Z only, min length 3, max length 15)
+  // 1. Clean and deduplicate words
+  const seen = new Set<string>();
   const cleanedItems = wordItems
     .map(item => ({
       word: item.word.toUpperCase().replace(/[^A-Z]/g, ''),
       clue: item.clue
     }))
-    .filter(item => item.word.length >= 3 && item.word.length <= 15);
+    .filter(item => {
+      if (item.word.length < 3 || item.word.length > 15) return false;
+      if (seen.has(item.word)) return false;
+      seen.add(item.word);
+      return true;
+    });
 
-  if (cleanedItems.length === 0) {
-    return [];
-  }
+  if (cleanedItems.length === 0) return [];
 
-  // Sort words by length descending
+  // Sort by length descending — longer words give more intersection opportunities
   const sortedItems = [...cleanedItems].sort((a, b) => b.word.length - a.word.length);
+  const effectiveTarget = Math.min(targetCount, sortedItems.length);
 
   let bestPlaced: PlacedWord[] = [];
 
-  // Try at most 2 starting words for maximum speed
-  for (let startIndex = 0; startIndex < Math.min(2, sortedItems.length); startIndex++) {
-    const placed = attemptPlacement(sortedItems, startIndex, targetCount);
+  // Try up to 3 different starting words to maximize placement count
+  const startCount = Math.min(3, sortedItems.length);
+  for (let startIndex = 0; startIndex < startCount; startIndex++) {
+    const placed = attemptPlacement(sortedItems, startIndex, effectiveTarget);
     if (placed.length > bestPlaced.length) {
       bestPlaced = placed;
     }
-    if (bestPlaced.length >= targetCount) {
-      break;
-    }
+    if (bestPlaced.length >= effectiveTarget) break;
   }
 
   if (bestPlaced.length === 0) return [];
 
-  // Crop and shift coordinates so min(row) = 0 and min(col) = 0
+  // Normalize coordinates so min(row)=0, min(col)=0
   let minRow = Infinity;
   let minCol = Infinity;
-
   bestPlaced.forEach(p => {
     minRow = Math.min(minRow, p.row);
     minCol = Math.min(minCol, p.col);
@@ -67,6 +118,8 @@ export function generateLayout(
     col: p.col - minCol
   }));
 }
+
+// ─── Internal helpers ─────────────────────────────────────────────────────────
 
 function attemptPlacement(
   sortedItems: WordItem[],
@@ -84,7 +137,7 @@ function attemptPlacement(
     }
   };
 
-  // Place first word at center (row=50, col=50 - half length)
+  // Place first word centered (row=50, col=50 - half length)
   const firstItem = sortedItems[startIndex];
   const firstPlaced: PlacedWord = {
     word: firstItem.word,
@@ -96,58 +149,35 @@ function attemptPlacement(
   placedWords.push(firstPlaced);
   addWordToGrid(firstPlaced.word, firstPlaced.row, firstPlaced.col, firstPlaced.direction);
 
+  const placedWordSet = new Set<string>([firstItem.word]);
   const remaining = sortedItems.filter((_, idx) => idx !== startIndex);
 
-  // Iterate to place remaining words
-  let placedAny = true;
-  while (placedAny && placedWords.length < targetCount) {
-    placedAny = false;
+  // Iterative placement: each pass tries every remaining word
+  let improved = true;
+  let iteration = 0;
+  const MAX_ITERATIONS = 20; // Safety limit against O(n²) blow-up
+
+  while (improved && placedWords.length < targetCount && iteration < MAX_ITERATIONS) {
+    improved = false;
+    iteration++;
 
     for (let i = 0; i < remaining.length; i++) {
       const item = remaining[i];
-      if (placedWords.some(pw => pw.word === item.word)) continue;
+      if (placedWordSet.has(item.word)) continue;
+      if (placedWords.length >= targetCount) break;
 
       const bestCandidate = findBestPlacement(item, placedWords, grid);
       if (bestCandidate) {
         placedWords.push(bestCandidate);
         addWordToGrid(bestCandidate.word, bestCandidate.row, bestCandidate.col, bestCandidate.direction);
-        placedAny = true;
-        if (placedWords.length >= targetCount) break;
+        placedWordSet.add(item.word);
+        improved = true;
       }
     }
   }
 
-  // Place remaining words as floating disconnected components if they couldn't be connected
-  if (placedWords.length < Math.min(targetCount, sortedItems.length)) {
-    for (let i = 0; i < sortedItems.length; i++) {
-      const item = sortedItems[i];
-      if (placedWords.some(pw => pw.word === item.word)) continue;
-
-      // Find current max row to place the new word safely below
-      let maxR = 50;
-      placedWords.forEach(pw => {
-        const len = pw.word.length;
-        const endR = pw.direction === 'across' ? pw.row : pw.row + len - 1;
-        maxR = Math.max(maxR, endR);
-      });
-
-      // Place floating word 2 rows below the max row, centered horizontally
-      const r = maxR + 2;
-      const c = 50 - Math.floor(item.word.length / 2);
-      const floatPlaced: PlacedWord = {
-        word: item.word,
-        clue: item.clue,
-        direction: 'across',
-        row: r,
-        col: c
-      };
-      placedWords.push(floatPlaced);
-      addWordToGrid(floatPlaced.word, floatPlaced.row, floatPlaced.col, floatPlaced.direction);
-
-      if (placedWords.length >= targetCount) break;
-    }
-  }
-
+  // IMPORTANT: Do NOT place floating disconnected words.
+  // A real crossword requires all words to be connected.
   return placedWords;
 }
 
@@ -173,16 +203,17 @@ function findBestPlacement(
       const pwC = pw.col + (pw.direction === 'across' ? i : 0);
 
       for (let j = 0; j < word.length; j++) {
-        if (word[j] === pwLetter) {
-          const dir: Direction = pw.direction === 'across' ? 'down' : 'across';
-          const r = pwR - (dir === 'across' ? 0 : j);
-          const c = pwC - (dir === 'across' ? j : 0);
+        if (word[j] !== pwLetter) continue;
 
-          if (isValidPlacement(word, r, c, dir, grid)) {
-            const score = calculatePlacementScore(word, r, c, dir, placedWords, grid);
-            if (!bestCandidate || score > bestCandidate.score) {
-              bestCandidate = { row: r, col: c, direction: dir, score };
-            }
+        // New word must be perpendicular to the existing word
+        const dir: Direction = pw.direction === 'across' ? 'down' : 'across';
+        const r = pwR - (dir === 'across' ? 0 : j);
+        const c = pwC - (dir === 'across' ? j : 0);
+
+        if (isValidPlacement(word, r, c, dir, grid)) {
+          const score = calculatePlacementScore(word, r, c, dir, placedWords, grid);
+          if (!bestCandidate || score > bestCandidate.score) {
+            bestCandidate = { row: r, col: c, direction: dir, score };
           }
         }
       }
@@ -202,13 +233,17 @@ function findBestPlacement(
   return null;
 }
 
-function isParallelWord(row: number, col: number, direction: Direction, grid: Map<string, string>): boolean {
-  if (direction === 'across') {
-    return grid.has(`${row},${col - 1}`) || grid.has(`${row},${col + 1}`);
-  }
-  return grid.has(`${row - 1},${col}`) || grid.has(`${row + 1},${col}`);
-}
-
+/**
+ * Validates that a word can be placed at (startR, startC) in direction dir.
+ *
+ * Rules:
+ * 1. The cell immediately before the word start must be empty.
+ * 2. The cell immediately after the word end must be empty.
+ * 3. At each word cell:
+ *    a. If occupied: letter must match (intersection).
+ *    b. If empty: no parallel adjacent letters that would create an adjacent parallel word.
+ * 4. The word must have at least one intersection with an existing word.
+ */
 function isValidPlacement(
   word: string,
   startR: number,
@@ -220,6 +255,7 @@ function isValidPlacement(
   const dc = dir === 'across' ? 1 : 0;
   const len = word.length;
 
+  // Rule 1 & 2: No letter directly before or after the word
   if (grid.has(`${startR - dr},${startC - dc}`)) return false;
   if (grid.has(`${startR + dr * len},${startC + dc * len}`)) return false;
 
@@ -231,27 +267,33 @@ function isValidPlacement(
     const letter = word[k];
 
     if (grid.has(`${r},${c}`)) {
+      // Rule 3a: Must match existing letter
       if (grid.get(`${r},${c}`) !== letter) return false;
       hasIntersection = true;
     } else {
+      // Rule 3b: No parallel adjacent letters that form an unintentional adjacency
       if (dir === 'across') {
+        // Word runs left→right; check above and below for conflicts
         const above = grid.has(`${r - 1},${c}`);
         const below = grid.has(`${r + 1},${c}`);
         if (above || below) {
-          if (above && isParallelWord(r - 1, c, 'across', grid)) return false;
-          if (below && isParallelWord(r + 1, c, 'across', grid)) return false;
+          // There's a letter above/below this cell.
+          // It's only OK if this cell is the intersection point (already handled above).
+          // An adjacent letter at a non-intersection means two parallel words would run side by side.
+          return false;
         }
       } else {
+        // Word runs top→bottom; check left and right for conflicts
         const left = grid.has(`${r},${c - 1}`);
         const right = grid.has(`${r},${c + 1}`);
         if (left || right) {
-          if (left && isParallelWord(r, c - 1, 'down', grid)) return false;
-          if (right && isParallelWord(r, c + 1, 'down', grid)) return false;
+          return false;
         }
       }
     }
   }
 
+  // Rule 4: Must intersect at least one existing word
   return hasIntersection;
 }
 
@@ -275,6 +317,7 @@ function calculatePlacementScore(
     }
   }
 
+  // Calculate the bounding box of all words (including this candidate)
   let minR = startR, maxR = startR + dr * (word.length - 1);
   let minC = startC, maxC = startC + dc * (word.length - 1);
 
@@ -289,5 +332,6 @@ function calculatePlacementScore(
 
   const area = (maxR - minR + 1) * (maxC - minC + 1);
 
-  return intersections * 10 - area * 0.1;
+  // Reward intersections heavily; penalize large bounding box to keep grid compact
+  return intersections * 10 - area * 0.05;
 }

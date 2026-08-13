@@ -36,6 +36,10 @@ const FacultyCreate: React.FC = () => {
   });
 
   const [questions, setQuestions] = useState<Omit<Question, 'id' | 'assessment_id'>[]>([]);
+  const [generationLogs, setGenerationLogs] = useState<any>(null);
+  const [showLogs, setShowLogs] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [customApiKey, setCustomApiKey] = useState<string>('');
 
   // Pre-fill faculty details
   useEffect(() => {
@@ -97,27 +101,46 @@ const FacultyCreate: React.FC = () => {
 
     setStep('generating');
     setLoading(true);
-    try {
-      let topicStr = formData.topic.trim();
-      let subjectStr = formData.subject.trim();
-      let titleStr = formData.title.trim();
+    setQuestions([]);
+    setGenerationLogs(null);
+    setGenerationError(null);
 
-      // If topic is provided, it is the sole focus topic for generation
-      const effectiveTopic = topicStr || subjectStr || titleStr || 'General Knowledge';
+    let topicStr = formData.topic.trim();
+    let subjectStr = formData.subject.trim();
+    let titleStr = formData.title.trim();
+
+    const effectiveTopic = topicStr || subjectStr || titleStr;
+    const hasPdf = Boolean(selectedFile || (formData.content && formData.content.trim().length > 30));
+
+    // Strict validation: IF topic is empty AND PDF is empty -> alert and return
+    if (!effectiveTopic && !hasPdf) {
+      alert("Please enter a topic or upload a PDF.");
+      setLoading(false);
+      setStep('config');
+      return;
+    }
+
+    try {
+      // Case 1: PDF uploaded -> pass PDF content/fileData
+      // Case 2: NO PDF uploaded -> do NOT pass document content or fileData
+      const passContent = hasPdf ? formData.content : '';
+      const passFile = hasPdf ? (selectedFile || undefined) : undefined;
 
       const aiResult = await generateCrossword(
-        effectiveTopic,
-        formData.content,
+        effectiveTopic || 'General Knowledge',
+        passContent,
         formData.questionsCount,
-        selectedFile || undefined
+        passFile,
+        customApiKey
       );
 
       setQuestions(aiResult.questions);
+      setGenerationLogs(aiResult.generationLogs || null);
       setStep('review');
     } catch (err) {
       console.error('Generation error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      alert(`Generation failed: ${errorMessage}\n\nPlease check your internet connection or topic/document content.`);
+      setGenerationError(errorMessage);
       setStep('config');
     } finally {
       setLoading(false);
@@ -330,6 +353,114 @@ const FacultyCreate: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {generationLogs && (
+          <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 shadow-sm space-y-4">
+            <div className="flex justify-between items-center cursor-pointer select-none" onClick={() => setShowLogs(!showLogs)}>
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-teal-50 text-teal-700 rounded-xl flex items-center justify-center border border-teal-200">
+                  <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-[#002147]">AI Generation Pipeline Audit Trail</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Inspect topic relevance judgments, token counts, and filtering decisions.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="text-xs font-bold text-[#b01c1e] hover:underline cursor-pointer"
+              >
+                {showLogs ? 'Hide Audit Trail ✕' : 'Expand Audit Trail ⚙️'}
+              </button>
+            </div>
+
+            {showLogs && (
+              <div className="pt-4 border-t border-slate-200 space-y-6">
+                {/* Metrics Summary Row */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-black block tracking-wider">Input Topic</span>
+                    <span className="text-xs font-bold text-slate-800 block mt-1 truncate">{generationLogs.topic}</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-black block tracking-wider">Total Generated</span>
+                    <span className="text-lg font-black text-[#002147] block mt-0.5">{generationLogs.filteredConcepts.length + generationLogs.rejectedConcepts.length}</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-black block tracking-wider">Rejected</span>
+                    <span className="text-lg font-black text-red-600 block mt-0.5">{generationLogs.rejectedConcepts.length}</span>
+                  </div>
+                  <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                    <span className="text-[10px] text-slate-500 uppercase font-black block tracking-wider">Passed validation</span>
+                    <span className="text-lg font-black text-teal-600 block mt-0.5">{generationLogs.finalConcepts.length}</span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Left Column: Accepted with scores */}
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200 space-y-3">
+                    <h4 className="text-xs font-bold text-[#002147] border-b border-slate-100 pb-2 flex items-center justify-between">
+                      <span>Passed & Selected Concepts</span>
+                      <span className="text-[10px] bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full font-bold">Passed</span>
+                    </h4>
+                    <div className="max-h-60 overflow-y-auto pr-1 space-y-2 scrollbar-thin">
+                      {generationLogs.filteredConcepts.map((item: string, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-xs">
+                          <span className="font-mono font-bold text-slate-800">{item.split(' ')[0]}</span>
+                          <span className="text-[10px] text-slate-600 font-bold bg-white px-2 py-0.5 rounded-md border border-slate-200 font-mono">
+                            {item.includes('Similarity:') ? 'Similarity: ' + item.split('Similarity:')[1].trim() : 'Passed'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Right Column: Rejected list with reasons */}
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200 space-y-3">
+                    <h4 className="text-xs font-bold text-red-700 border-b border-slate-100 pb-2 flex items-center justify-between">
+                      <span>Rejected Concepts & Reason</span>
+                      <span className="text-[10px] bg-red-50 text-red-700 px-2 py-0.5 rounded-full font-bold">Filtered</span>
+                    </h4>
+                    <div className="max-h-60 overflow-y-auto pr-1 space-y-2 scrollbar-thin">
+                      {generationLogs.rejectedConcepts.length === 0 ? (
+                        <p className="text-xs text-slate-500 py-6 text-center font-medium">No concepts were rejected.</p>
+                      ) : (
+                        generationLogs.rejectedConcepts.map((item: any, idx: number) => (
+                          <div key={idx} className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-mono font-bold text-slate-700 line-through">{item.word}</span>
+                              <span className="text-[9px] text-red-600 font-bold bg-red-50 px-1.5 py-0.5 rounded">Rejected</span>
+                            </div>
+                            <p className="text-[10px] text-slate-500 font-medium">{item.reason}</p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Raw API payload view */}
+                <div className="bg-white p-5 rounded-3xl border border-slate-200 space-y-3">
+                  <h4 className="text-xs font-bold text-slate-700">Raw Model Outputs (Audit Trail)</h4>
+                  <div className="space-y-3">
+                    {generationLogs.rawResponses.map((res: string, idx: number) => (
+                      <details key={idx} className="group bg-slate-50 border border-slate-200 rounded-2xl overflow-hidden">
+                        <summary className="flex justify-between items-center font-bold text-xs p-4 cursor-pointer text-slate-700 hover:bg-slate-100/50">
+                          <span>Stage {idx + 1}: {res.split('\n')[0].replace('[', '').replace(']:', '').trim()}</span>
+                          <span className="text-[#b01c1e] text-[10px] group-open:hidden">Expand ▾</span>
+                          <span className="text-[#b01c1e] text-[10px] hidden group-open:inline">Collapse ▴</span>
+                        </summary>
+                        <div className="p-4 border-t border-slate-200 bg-slate-900 text-slate-200 font-mono text-[10px] overflow-x-auto whitespace-pre max-h-64 scrollbar-thin">
+                          {res}
+                        </div>
+                      </details>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {preview.collisions && (
           <div className="bg-red-50 border border-red-200 text-red-700 text-xs font-bold p-4 rounded-2xl text-center">
@@ -730,6 +861,44 @@ const FacultyCreate: React.FC = () => {
             )}
           </button>
         </div>
+
+        {/* Inline generation error — replaces alert() */}
+        {generationError && (
+          <div className="flex items-start gap-3 bg-red-50 border border-red-200 text-red-800 rounded-2xl px-4 py-3.5 text-sm animate-fade-in space-y-2">
+            <span className="text-red-500 mt-0.5 shrink-0">⚠️</span>
+            <div className="flex-1">
+              <p className="font-bold text-xs uppercase tracking-wider text-red-700 mb-0.5">Generation Failed</p>
+              <p className="leading-relaxed">{generationError}</p>
+
+              {/* Optional Key Input if Auth Error */}
+              {(generationError.includes('authentication') || generationError.includes('API key')) && (
+                <div className="mt-3 pt-2 border-t border-red-200">
+                  <label className="text-[11px] font-bold text-red-800 uppercase block mb-1">Enter Google AI Studio Key (AIza...)</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      placeholder="Paste AIza... key"
+                      value={customApiKey}
+                      onChange={(e) => setCustomApiKey(e.target.value)}
+                      className="flex-1 text-xs px-3 py-1.5 rounded-lg border border-red-300 bg-white focus:outline-none focus:ring-1 focus:ring-red-500"
+                    />
+                    <button
+                      type="submit"
+                      className="bg-red-700 hover:bg-red-800 text-white text-xs font-bold px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      Retry with Key
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setGenerationError(null)}
+              className="text-red-400 hover:text-red-700 shrink-0 mt-0.5 cursor-pointer"
+            >✕</button>
+          </div>
+        )}
       </form>
     </div>
   );

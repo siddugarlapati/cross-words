@@ -62,6 +62,8 @@ const Signup: React.FC = () => {
     } catch (err: any) {
       if (err.status === 429 || String(err.message || '').includes('429') || String(err.message || '').toLowerCase().includes('rate limit')) {
         setError('⚠️ Security rate limit reached (429: Too Many Requests). Please wait 60 seconds before trying again.');
+      } else if (err.name === 'TypeError' || String(err.message || '').includes('Failed to fetch') || String(err.message || '').includes('fetch failed')) {
+        setError('🔌 Connection Refused: Local Supabase database (127.0.0.1:54321) is offline. Please start Docker / Supabase or set a remote VITE_SUPABASE_URL in .env');
       } else {
         setError(err.message || 'Failed to create account.');
       }

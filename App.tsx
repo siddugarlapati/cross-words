@@ -10,8 +10,15 @@ import Signup from './pages/Signup';
 import SuperAdmin from './pages/SuperAdmin';
 import StudentDashboard from './pages/StudentDashboard';
 import { AuthProvider, useAuth, validatePasswordComplexity } from './authContext';
+import { ErrorBoundary } from './ErrorBoundary';
 
-const ProtectedRoute: React.FC<{ children: React.ReactNode; facultyOnly?: boolean; adminOnly?: boolean }> = ({ children, facultyOnly, adminOnly }) => {
+// ─── Protected Route ──────────────────────────────────────────────────────────
+const ProtectedRoute: React.FC<{
+  children: React.ReactNode;
+  facultyOnly?: boolean;
+  adminOnly?: boolean;
+  studentOnly?: boolean;
+}> = ({ children, facultyOnly, adminOnly, studentOnly }) => {
   const { user, profile, loading } = useAuth();
 
   if (loading) {
@@ -31,7 +38,23 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; facultyOnly?: boolea
     return <Navigate to="/login" replace />;
   }
 
-  const role = profile?.role || 'faculty';
+  // If user is authenticated but profile hasn't loaded yet, keep showing loader.
+  // CRITICAL: Never default role to 'faculty' when profile is null — this prevents
+  // privilege escalation where a slow DB could grant unintended access.
+  if (!profile) {
+    return (
+      <div className="flex flex-col items-center justify-center py-40 min-h-screen bg-[#f8f9fc]">
+        <div className="w-16 h-16 border-4 border-slate-200 rounded-full mb-6 relative">
+          <div className="absolute inset-0 border-4 border-[#002147] border-t-transparent rounded-full animate-spin"></div>
+        </div>
+        <p className="text-slate-500 font-mono uppercase tracking-widest text-sm animate-pulse">
+          Loading Profile...
+        </p>
+      </div>
+    );
+  }
+
+  const role = profile.role;
 
   if (adminOnly && role !== 'admin') {
     return (
@@ -53,9 +76,20 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode; facultyOnly?: boolea
     );
   }
 
+  if (studentOnly && role !== 'student' && role !== 'admin') {
+    return (
+      <div className="max-w-md mx-auto my-20 p-8 bg-white border border-amber-200 rounded-3xl text-center shadow-lg">
+        <h2 className="text-2xl font-black text-[#002147] mb-2">Student Access Required</h2>
+        <p className="text-slate-600 text-xs mb-6 font-medium">This dashboard is for students only.</p>
+        <Link to="/dashboard" className="inline-block px-6 py-3 bg-[#002147] hover:bg-[#001733] text-white font-bold rounded-xl text-xs transition-all">Go to Faculty Dashboard</Link>
+      </div>
+    );
+  }
+
   return <>{children}</>;
 };
 
+// ─── Navigation Bar ───────────────────────────────────────────────────────────
 const NavigationBar: React.FC = () => {
   const { user, profile, signOut, changePassword, isSignupHidden } = useAuth();
   const navigate = useNavigate();
@@ -65,6 +99,7 @@ const NavigationBar: React.FC = () => {
   const [pwdNew, setPwdNew] = useState('');
   const [pwdError, setPwdError] = useState('');
   const [pwdSuccess, setPwdSuccess] = useState('');
+  const [pwdLoading, setPwdLoading] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
@@ -83,6 +118,7 @@ const NavigationBar: React.FC = () => {
       return;
     }
 
+    setPwdLoading(true);
     try {
       await changePassword(pwdCurrent, pwdNew);
       setPwdSuccess('Password successfully updated!');
@@ -94,11 +130,14 @@ const NavigationBar: React.FC = () => {
       }, 1500);
     } catch (err: any) {
       setPwdError(err.message || 'Failed to update password');
+    } finally {
+      setPwdLoading(false);
     }
   };
 
   const pwdValidation = validatePasswordComplexity(pwdNew);
-  const userRole = profile?.role || (user?.email === 'admin@anurag.edu.in' ? 'admin' : 'faculty');
+  // Always use DB-backed role. Never fall back to email comparison for admin.
+  const userRole = profile?.role;
 
   return (
     <>
@@ -127,17 +166,17 @@ const NavigationBar: React.FC = () => {
                   <Link to="/student-dashboard" className="text-[#002147] hover:text-[#b01c1e] transition-colors">
                     Student Dashboard
                   </Link>
-                ) : (
+                ) : userRole === 'faculty' || userRole === 'admin' ? (
                   <>
                     <Link to="/create" className="text-slate-600 hover:text-[#002147] transition-colors">Create Assessment</Link>
                     <Link to="/dashboard" className="text-slate-600 hover:text-[#002147] transition-colors">Faculty Dashboard</Link>
                   </>
-                )}
+                ) : null}
                 <div className="h-4 w-px bg-slate-300" />
                 <div className="flex items-center gap-3">
                   <div className="text-right">
                     <p className="text-xs text-[#002147] font-bold leading-none">{profile?.full_name || user.email}</p>
-                    <span className="text-[10px] font-bold text-[#b01c1e] uppercase">{userRole}</span>
+                    <span className="text-[10px] font-bold text-[#b01c1e] uppercase">{userRole || '...'}</span>
                   </div>
                   <button
                     onClick={() => setShowPwdModal(true)}
@@ -188,7 +227,7 @@ const NavigationBar: React.FC = () => {
               <>
                 <div className="pb-3 border-b border-slate-200">
                   <p className="text-sm font-bold text-[#002147]">{profile?.full_name || user.email}</p>
-                  <span className="text-xs text-slate-500 capitalize">Role: {userRole}</span>
+                  <span className="text-xs text-slate-500 capitalize">Role: {userRole || '...'}</span>
                 </div>
                 {userRole === 'admin' && (
                   <Link to="/admin" onClick={() => setMobileMenuOpen(false)} className="block text-amber-700 font-bold py-2">
@@ -230,11 +269,25 @@ const NavigationBar: React.FC = () => {
             <form onSubmit={handleChangePassword} className="space-y-4">
               <div>
                 <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">Current Password</label>
-                <input type="password" required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" value={pwdCurrent} onChange={e => setPwdCurrent(e.target.value)} />
+                <input
+                  type="password"
+                  required
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm"
+                  value={pwdCurrent}
+                  onChange={e => setPwdCurrent(e.target.value)}
+                  disabled={pwdLoading}
+                />
               </div>
               <div>
                 <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">New Password</label>
-                <input type="password" required className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm" value={pwdNew} onChange={e => setPwdNew(e.target.value)} />
+                <input
+                  type="password"
+                  required
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm"
+                  value={pwdNew}
+                  onChange={e => setPwdNew(e.target.value)}
+                  disabled={pwdLoading}
+                />
               </div>
 
               {pwdNew && (
@@ -251,8 +304,21 @@ const NavigationBar: React.FC = () => {
               {pwdSuccess && <p className="text-emerald-600 text-xs font-bold text-center bg-emerald-50 p-2 rounded-lg border border-emerald-200">{pwdSuccess}</p>}
 
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowPwdModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-sm transition-all cursor-pointer">Cancel</button>
-                <button type="submit" disabled={!pwdValidation.isValid} className="flex-1 bg-[#b01c1e] hover:bg-[#851415] disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-sm transition-all cursor-pointer shadow-sm">Update Password</button>
+                <button
+                  type="button"
+                  onClick={() => setShowPwdModal(false)}
+                  className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2.5 rounded-xl text-sm transition-all cursor-pointer"
+                  disabled={pwdLoading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!pwdValidation.isValid || pwdLoading}
+                  className="flex-1 bg-[#b01c1e] hover:bg-[#851415] disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-sm transition-all cursor-pointer shadow-sm flex items-center justify-center gap-2"
+                >
+                  {pwdLoading ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : 'Update Password'}
+                </button>
               </div>
             </form>
           </div>
@@ -262,6 +328,7 @@ const NavigationBar: React.FC = () => {
   );
 };
 
+// ─── App Content ──────────────────────────────────────────────────────────────
 const AppContent: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-[#f8f9fc] text-slate-800 relative selection:bg-red-100">
@@ -274,7 +341,7 @@ const AppContent: React.FC = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/admin" element={<ProtectedRoute adminOnly><SuperAdmin /></ProtectedRoute>} />
-          <Route path="/student-dashboard" element={<ProtectedRoute><StudentDashboard /></ProtectedRoute>} />
+          <Route path="/student-dashboard" element={<ProtectedRoute studentOnly><StudentDashboard /></ProtectedRoute>} />
           <Route path="/create" element={<ProtectedRoute facultyOnly><FacultyCreate /></ProtectedRoute>} />
           <Route path="/dashboard" element={<ProtectedRoute facultyOnly><FacultyDashboard /></ProtectedRoute>} />
           <Route path="/solve/:id" element={<StudentSolve />} />
@@ -297,13 +364,18 @@ const AppContent: React.FC = () => {
   );
 };
 
+// ─── Root App ─────────────────────────────────────────────────────────────────
 const App: React.FC = () => {
   return (
-    <AuthProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <Router>
+          <ErrorBoundary>
+            <AppContent />
+          </ErrorBoundary>
+        </Router>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 };
 

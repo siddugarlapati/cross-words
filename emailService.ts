@@ -1,6 +1,9 @@
 // Resend Email Service for AutoCross-Edu (Anurag University)
 
 const resendApiKey = import.meta.env.VITE_RESEND_API_KEY || '';
+// Use configurable sender email — set VITE_RESEND_FROM_EMAIL in your environment.
+// Must be a verified domain in your Resend account.
+const fromEmail = import.meta.env.VITE_RESEND_FROM_EMAIL || 'noreply@anurag.edu.in';
 
 export interface StudentEmailParams {
   studentName: string;
@@ -33,17 +36,38 @@ const formatTime = (seconds: number) => {
   return `${mins}m ${secs}s`;
 };
 
+/**
+ * Escapes HTML entities to prevent XSS injection in email HTML templates.
+ * All user-provided strings MUST be escaped before embedding in HTML.
+ */
+function escapeHtml(unsafe: string): string {
+  if (!unsafe) return '';
+  return String(unsafe)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 export const emailService = {
   /**
    * Send student assessment score and performance feedback email via Resend
    */
   async sendStudentResultEmail(params: StudentEmailParams): Promise<boolean> {
     if (!params.studentEmail || !params.studentEmail.includes('@')) {
-      console.warn('⚠️ Invalid student email address provided:', params.studentEmail);
+      console.warn('[Email] Invalid student email address:', params.studentEmail);
       return false;
     }
 
-    const percentage = Math.round((params.score / params.totalQuestions) * 100);
+    if (!resendApiKey) {
+      console.warn('[Email] No Resend API key configured. Email not sent.');
+      return false;
+    }
+
+    const percentage = params.totalQuestions > 0
+      ? Math.round((params.score / params.totalQuestions) * 100)
+      : 0;
     const badgeColor = percentage >= 80 ? '#10b981' : percentage >= 50 ? '#f59e0b' : '#ef4444';
     const feedbackMsg = percentage >= 80
       ? 'Outstanding performance! You have demonstrated exceptional mastery of this curriculum topic.'
@@ -51,11 +75,18 @@ export const emailService = {
         ? 'Good effort! You have a solid grasp of the concepts, with room for minor revision.'
         : 'Keep practicing! Review the course material and attempt future crosswords to strengthen your understanding.';
 
+    // SECURITY: All user-provided values are HTML-escaped before embedding
+    const safeStudentName = escapeHtml(params.studentName);
+    const safeAssessmentTitle = escapeHtml(params.assessmentTitle);
+    const safeSubject = escapeHtml(params.subject);
+    const safeRollNumber = escapeHtml(params.rollNumber);
+
     const htmlContent = `
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
       <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
           body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0b1120; color: #f1f5f9; margin: 0; padding: 20px; }
           .container { max-width: 600px; margin: 0 auto; background-color: #002147; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
@@ -65,7 +96,7 @@ export const emailService = {
           .body-content { padding: 32px 24px; }
           .student-card { background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; }
           .score-box { background: linear-gradient(135deg, #001529 0%, #002147 100%); border: 2px solid ${badgeColor}; border-radius: 14px; padding: 24px; text-align: center; margin-bottom: 24px; }
-          .score-num { font-size: 48px; font-weight: 900; color: #ffffff; line-height: 1; }
+          .score-num { font-size: 48px; font-weight: 900; color: ${badgeColor}; line-height: 1; }
           .score-label { color: #94a3b8; font-size: 13px; font-weight: 600; text-transform: uppercase; margin-top: 6px; }
           .stat-grid { display: flex; justify-content: space-around; background: rgba(0,0,0,0.2); padding: 16px; border-radius: 10px; margin-top: 16px; }
           .stat-item { text-align: center; }
@@ -85,17 +116,17 @@ export const emailService = {
           <div class="body-content">
             <h2 style="color: #ffffff; margin-top: 0;">Assessment Completed 🎉</h2>
             <p style="color: #cbd5e1; font-size: 14px; line-height: 1.6;">
-              Dear <strong>${params.studentName}</strong>, your answers for the assessment <strong>"${params.assessmentTitle}"</strong> (${params.subject}) have been submitted and evaluated.
+              Dear <strong>${safeStudentName}</strong>, your answers for the assessment <strong>&ldquo;${safeAssessmentTitle}&rdquo;</strong> (${safeSubject}) have been submitted and evaluated.
             </p>
 
             <div class="student-card">
               <div style="font-size: 12px; color: #94a3b8; text-transform: uppercase; font-weight: 700; margin-bottom: 4px;">Student Details</div>
-              <div style="font-size: 15px; color: #ffffff; font-weight: 700;">${params.studentName}</div>
-              <div style="font-size: 13px; color: #d4af37; font-family: monospace;">Hall Ticket: ${params.rollNumber}</div>
+              <div style="font-size: 15px; color: #ffffff; font-weight: 700;">${safeStudentName}</div>
+              <div style="font-size: 13px; color: #d4af37; font-family: monospace;">Hall Ticket: ${safeRollNumber}</div>
             </div>
 
             <div class="score-box">
-              <div class="score-num" style="color: ${badgeColor}">${params.score} / ${params.totalQuestions}</div>
+              <div class="score-num">${params.score} / ${params.totalQuestions}</div>
               <div class="score-label">Score (${percentage}% Accuracy)</div>
 
               <div class="stat-grid">
@@ -104,7 +135,7 @@ export const emailService = {
                   <div class="stat-lbl">Accuracy</div>
                 </div>
                 <div class="stat-item">
-                  <div class="stat-val">${formatTime(params.timeTakenSeconds)}</div>
+                  <div class="stat-val">${escapeHtml(formatTime(params.timeTakenSeconds))}</div>
                   <div class="stat-lbl">Time Taken</div>
                 </div>
                 <div class="stat-item">
@@ -116,11 +147,11 @@ export const emailService = {
 
             <div class="feedback">
               <strong>Instructor Feedback:</strong><br/>
-              ${feedbackMsg}
+              ${escapeHtml(feedbackMsg)}
             </div>
           </div>
           <div class="footer">
-            Official Assessment Report • Anurag University Educational Platform<br/>
+            Official Assessment Report &bull; Anurag University Educational Platform<br/>
             This is an automated notification. Please do not reply to this email.
           </div>
         </div>
@@ -136,22 +167,22 @@ export const emailService = {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          from: 'onboarding@resend.dev',
+          from: fromEmail,
           to: [params.studentEmail],
-          subject: `Your Assessment Results: ${params.assessmentTitle} - ${params.score}/${params.totalQuestions}`,
+          subject: `Your Assessment Results: ${params.assessmentTitle} — ${params.score}/${params.totalQuestions}`,
           html: htmlContent
         })
       });
 
       const resData = await response.json();
       if (!response.ok) {
-        console.error('❌ Resend API Error (Student Email):', resData);
+        console.error('[Email] Resend API Error (Student Email):', resData);
         return false;
       }
-      console.log('✅ Student result email sent successfully to:', params.studentEmail, resData);
+      console.log('[Email] Student result email sent successfully to:', params.studentEmail);
       return true;
     } catch (err) {
-      console.error('❌ Failed to send student result email:', err);
+      console.error('[Email] Failed to send student result email:', err);
       return false;
     }
   },
@@ -161,17 +192,33 @@ export const emailService = {
    */
   async sendFacultyReportEmail(params: FacultyEmailParams): Promise<boolean> {
     if (!params.facultyEmail || !params.facultyEmail.includes('@')) {
-      console.warn('⚠️ Invalid faculty email address provided:', params.facultyEmail);
+      console.warn('[Email] Invalid faculty email address:', params.facultyEmail);
       return false;
     }
 
-    const percentage = Math.round((params.score / params.totalQuestions) * 100);
+    if (!resendApiKey) {
+      console.warn('[Email] No Resend API key configured. Email not sent.');
+      return false;
+    }
+
+    const percentage = params.totalQuestions > 0
+      ? Math.round((params.score / params.totalQuestions) * 100)
+      : 0;
+
+    // SECURITY: All user-provided values are HTML-escaped
+    const safeFacultyName = escapeHtml(params.facultyName);
+    const safeStudentName = escapeHtml(params.studentName);
+    const safeRollNumber = escapeHtml(params.rollNumber);
+    const safeStudentEmail = escapeHtml(params.studentEmail);
+    const safeAssessmentTitle = escapeHtml(params.assessmentTitle);
+    const safeSubject = escapeHtml(params.subject);
 
     const htmlContent = `
       <!DOCTYPE html>
-      <html>
+      <html lang="en">
       <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
           body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0b1120; color: #f1f5f9; margin: 0; padding: 20px; }
           .container { max-width: 600px; margin: 0 auto; background-color: #002147; border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 16px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
@@ -194,21 +241,21 @@ export const emailService = {
           <div class="body-content">
             <h3 style="color: #ffffff; margin-top: 0;">New Student Submission Recorded</h3>
             <p style="color: #cbd5e1; font-size: 14px;">
-              Dear <strong>${params.facultyName}</strong>, a student has completed your crossword assessment: <strong>"${params.assessmentTitle}"</strong> (${params.subject}).
+              Dear <strong>${safeFacultyName}</strong>, a student has completed your crossword assessment: <strong>&ldquo;${safeAssessmentTitle}&rdquo;</strong> (${safeSubject}).
             </p>
 
             <div class="detail-box">
               <div class="row">
                 <span class="lbl">Student Name</span>
-                <span class="val">${params.studentName}</span>
+                <span class="val">${safeStudentName}</span>
               </div>
               <div class="row">
                 <span class="lbl">Hall Ticket / Roll No</span>
-                <span class="val" style="color: #d4af37; font-family: monospace;">${params.rollNumber}</span>
+                <span class="val" style="color: #d4af37; font-family: monospace;">${safeRollNumber}</span>
               </div>
               <div class="row">
                 <span class="lbl">Student Email</span>
-                <span class="val">${params.studentEmail}</span>
+                <span class="val">${safeStudentEmail}</span>
               </div>
               <div class="row">
                 <span class="lbl">Score Achieved</span>
@@ -216,7 +263,7 @@ export const emailService = {
               </div>
               <div class="row" style="border-bottom: none;">
                 <span class="lbl">Time Taken</span>
-                <span class="val">${formatTime(params.timeTakenSeconds)}</span>
+                <span class="val">${escapeHtml(formatTime(params.timeTakenSeconds))}</span>
               </div>
             </div>
 
@@ -225,7 +272,7 @@ export const emailService = {
             </p>
           </div>
           <div class="footer">
-            AutoCross-Edu Faculty Notification System • Anurag University
+            AutoCross-Edu Faculty Notification System &bull; Anurag University
           </div>
         </div>
       </body>
@@ -240,22 +287,22 @@ export const emailService = {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          from: 'onboarding@resend.dev',
+          from: fromEmail,
           to: [params.facultyEmail],
-          subject: `New Submission: ${params.studentName} (${params.rollNumber}) - ${params.assessmentTitle}`,
+          subject: `New Submission: ${params.studentName} (${params.rollNumber}) — ${params.assessmentTitle}`,
           html: htmlContent
         })
       });
 
       const resData = await response.json();
       if (!response.ok) {
-        console.error('❌ Resend API Error (Faculty Email):', resData);
+        console.error('[Email] Resend API Error (Faculty Email):', resData);
         return false;
       }
-      console.log('✅ Faculty report email sent successfully to:', params.facultyEmail, resData);
+      console.log('[Email] Faculty report email sent successfully to:', params.facultyEmail);
       return true;
     } catch (err) {
-      console.error('❌ Failed to send faculty report email:', err);
+      console.error('[Email] Failed to send faculty report email:', err);
       return false;
     }
   }

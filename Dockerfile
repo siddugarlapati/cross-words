@@ -1,40 +1,54 @@
-# Stage 1: Build the React application
+# ════════════════════════════════════════════════════════════════════════════
+#  AutoCross-Edu — Production Multi-stage Dockerfile
+#  Stage 1: Build Vite frontend + Bundled Node backend API server
+#  Stage 2: Run Node 20 + Nginx reverse proxy on port 80
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── Stage 1: Build ────────────────────────────────────────────────────────────
 FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copy dependency configs
-COPY package*.json ./
+COPY package.json package-lock.json ./
+RUN npm ci --prefer-offline --no-audit --no-fund
 
-# Install dependencies cleanly
-RUN npm ci
-
-# Copy all source files
 COPY . .
 
-# Define build args for environment variables (passed during build time)
 ARG VITE_SUPABASE_URL
 ARG VITE_SUPABASE_ANON_KEY
-ARG VITE_GEMINI_API_KEY
 ARG VITE_RESEND_API_KEY
+ARG VITE_RESEND_FROM_EMAIL=noreply@anurag.edu.in
 
 ENV VITE_SUPABASE_URL=$VITE_SUPABASE_URL
 ENV VITE_SUPABASE_ANON_KEY=$VITE_SUPABASE_ANON_KEY
-ENV VITE_GEMINI_API_KEY=$VITE_GEMINI_API_KEY
 ENV VITE_RESEND_API_KEY=$VITE_RESEND_API_KEY
+ENV VITE_RESEND_FROM_EMAIL=$VITE_RESEND_FROM_EMAIL
 
-# Run production build
+# Compiles dist/ (Vite) and dist-server/server.js (Node backend)
 RUN npm run build
 
-# Stage 2: Serve the static files with Nginx
-FROM nginx:alpine
+# ── Stage 2: Serve ────────────────────────────────────────────────────────────
+FROM node:20-alpine AS serve
 
-# Copy custom Nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN apk add --no-cache nginx wget
 
-# Copy build output from build stage
+WORKDIR /app
+
+# Copy compiled frontend and backend assets
 COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/dist-server /app/dist-server
+COPY --from=build /app/nginx.conf /etc/nginx/http.d/default.conf
 
 EXPOSE 80
 
-CMD ["nginx", "-g", "daemon off;"]
+# Create entrypoint script to run Node API server and Nginx
+RUN echo '#!/bin/sh' > /app/entrypoint.sh && \
+    echo 'node /app/dist-server/server.js &' >> /app/entrypoint.sh && \
+    echo 'exec nginx -g "daemon off;"' >> /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:80/health || exit 1
+
+ENTRYPOINT ["/app/entrypoint.sh"]
+

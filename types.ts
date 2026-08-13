@@ -41,4 +41,11 @@ export interface CrosswordGenerationResult {
   subject: string;
   visual_check?: string;
   questions: Omit<Question, 'id' | 'assessment_id'>[];
+  generationLogs?: {
+    topic: string;
+    rawResponses: string[];
+    filteredConcepts: string[];
+    rejectedConcepts: { word: string; reason: string }[];
+    finalConcepts: { word: string; clue: string }[];
+  };
 }
