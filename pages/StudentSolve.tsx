@@ -211,7 +211,7 @@ const StudentSolve: React.FC = () => {
 
         // Generate a deterministic, student-unique crossword layout using roll number + assessment ID as seed.
         // The same student ALWAYS gets the same crossword for the same assessment.
-        // Different students get different layouts.
+        // Different students get different layouts — both question order AND grid shape vary.
         const seedStr = rollNumber.trim().toUpperCase() + '_' + (assessment?.id || '');
         const seed = stringToSeed(seedStr);
         const rng = createSeededRandom(seed);
@@ -219,7 +219,8 @@ const StudentSolve: React.FC = () => {
         // Shuffle questions using our unbiased Fisher-Yates with seeded PRNG
         const shuffledQuestions: Question[] = seededShuffle<Question>(questions, rng);
         const wordItems = shuffledQuestions.map((q: Question) => ({ word: q.word, clue: q.clue }));
-        const studentLayout = generateLayout(wordItems, wordItems.length);
+        // Pass rng so the layout engine also randomises intersection choices — every student gets a unique grid shape
+        const studentLayout = generateLayout(wordItems, wordItems.length, rng);
 
         let finalQuestions: Question[];
         if (studentLayout.length >= 3) {

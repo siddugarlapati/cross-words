@@ -56,19 +56,13 @@ export function stringToSeed(str: string): number {
 
 /**
  * Generates a connected crossword grid layout from a list of words and clues.
- *
- * Rules enforced:
- * - All placed words must intersect with at least one already-placed word.
- * - No letter conflicts at intersections.
- * - No parallel adjacent words touching without a proper crossing.
- * - No floating/disconnected words.
- * - Words must be 3-15 uppercase A-Z characters.
- *
- * Returns only the words that could be validly placed (may be fewer than input).
+ * Pass a seeded `rng` to get a student-unique deterministic layout.
+ * Without rng, layout is deterministic based on word lengths only.
  */
 export function generateLayout(
   wordItems: WordItem[],
-  targetCount: number
+  targetCount: number,
+  rng?: () => number
 ): PlacedWord[] {
   // 1. Clean and deduplicate words
   const seen = new Set<string>();
@@ -87,15 +81,22 @@ export function generateLayout(
   if (cleanedItems.length === 0) return [];
 
   // Sort by length descending — longer words give more intersection opportunities
-  const sortedItems = [...cleanedItems].sort((a, b) => b.word.length - a.word.length);
+  // If rng provided, add a small seeded jitter so equal-length words get different starting order
+  const sortedItems = [...cleanedItems].sort((a, b) => {
+    const lenDiff = b.word.length - a.word.length;
+    if (lenDiff !== 0) return lenDiff;
+    // Same length: use seeded tiebreak so different students get different first-word choices
+    return rng ? (rng() > 0.5 ? 1 : -1) : 0;
+  });
+
   const effectiveTarget = Math.min(targetCount, sortedItems.length);
 
   let bestPlaced: PlacedWord[] = [];
 
-  // Try up to 3 different starting words to maximize placement count
-  const startCount = Math.min(3, sortedItems.length);
+  // Try multiple starting words — more attempts when rng is provided for better diversity
+  const startCount = rng ? Math.min(6, sortedItems.length) : Math.min(3, sortedItems.length);
   for (let startIndex = 0; startIndex < startCount; startIndex++) {
-    const placed = attemptPlacement(sortedItems, startIndex, effectiveTarget);
+    const placed = attemptPlacement(sortedItems, startIndex, effectiveTarget, rng);
     if (placed.length > bestPlaced.length) {
       bestPlaced = placed;
     }
@@ -124,7 +125,8 @@ export function generateLayout(
 function attemptPlacement(
   sortedItems: WordItem[],
   startIndex: number,
-  targetCount: number
+  targetCount: number,
+  rng?: () => number
 ): PlacedWord[] {
   const placedWords: PlacedWord[] = [];
   const grid = new Map<string, string>(); // "row,col" -> letter
@@ -137,20 +139,28 @@ function attemptPlacement(
     }
   };
 
-  // Place first word centered (row=50, col=50 - half length)
+  // Place first word — seeded row/col offset for per-student variation
   const firstItem = sortedItems[startIndex];
+  const rowOffset = rng ? Math.floor(rng() * 6) : 0;   // 0–5 row jitter
+  const colOffset = rng ? Math.floor(rng() * 6) : 0;   // 0–5 col jitter
+  // Randomly choose first word direction too
+  const firstDir: Direction = (rng && rng() > 0.5) ? 'down' : 'across';
   const firstPlaced: PlacedWord = {
     word: firstItem.word,
     clue: firstItem.clue,
-    direction: 'across',
-    row: 50,
-    col: 50 - Math.floor(firstItem.word.length / 2)
+    direction: firstDir,
+    row: 50 + rowOffset + (firstDir === 'down' ? 0 : 0),
+    col: 50 + colOffset - (firstDir === 'across' ? Math.floor(firstItem.word.length / 2) : 0)
   };
   placedWords.push(firstPlaced);
   addWordToGrid(firstPlaced.word, firstPlaced.row, firstPlaced.col, firstPlaced.direction);
 
   const placedWordSet = new Set<string>([firstItem.word]);
-  const remaining = sortedItems.filter((_, idx) => idx !== startIndex);
+  // Shuffle remaining words using rng so each student processes them in different order
+  let remaining = sortedItems.filter((_, idx) => idx !== startIndex);
+  if (rng) {
+    remaining = seededShuffle(remaining, rng);
+  }
 
   // Iterative placement: each pass tries every remaining word
   let improved = true;
@@ -166,7 +176,7 @@ function attemptPlacement(
       if (placedWordSet.has(item.word)) continue;
       if (placedWords.length >= targetCount) break;
 
-      const bestCandidate = findBestPlacement(item, placedWords, grid);
+      const bestCandidate = findBestPlacement(item, placedWords, grid, rng);
       if (bestCandidate) {
         placedWords.push(bestCandidate);
         addWordToGrid(bestCandidate.word, bestCandidate.row, bestCandidate.col, bestCandidate.direction);
@@ -176,8 +186,6 @@ function attemptPlacement(
     }
   }
 
-  // IMPORTANT: Do NOT place floating disconnected words.
-  // A real crossword requires all words to be connected.
   return placedWords;
 }
 
@@ -191,10 +199,11 @@ interface Candidate {
 function findBestPlacement(
   item: WordItem,
   placedWords: PlacedWord[],
-  grid: Map<string, string>
+  grid: Map<string, string>,
+  rng?: () => number
 ): PlacedWord | null {
   const word = item.word;
-  let bestCandidate: Candidate | null = null;
+  const candidates: Candidate[] = [];
 
   for (const pw of placedWords) {
     for (let i = 0; i < pw.word.length; i++) {
@@ -212,25 +221,34 @@ function findBestPlacement(
 
         if (isValidPlacement(word, r, c, dir, grid)) {
           const score = calculatePlacementScore(word, r, c, dir, placedWords, grid);
-          if (!bestCandidate || score > bestCandidate.score) {
-            bestCandidate = { row: r, col: c, direction: dir, score };
-          }
+          candidates.push({ row: r, col: c, direction: dir, score });
         }
       }
     }
   }
 
-  if (bestCandidate) {
-    return {
-      word,
-      clue: item.clue,
-      row: bestCandidate.row,
-      col: bestCandidate.col,
-      direction: bestCandidate.direction
-    };
+  if (candidates.length === 0) return null;
+
+  // Sort by score descending; when rng provided, shuffle among top candidates for variety
+  candidates.sort((a, b) => b.score - a.score);
+
+  let chosen: Candidate;
+  if (rng && candidates.length > 1) {
+    // Among the top candidates within 10% of the best score, pick randomly
+    const bestScore = candidates[0].score;
+    const topCandidates = candidates.filter(c => c.score >= bestScore - Math.abs(bestScore * 0.1) - 1);
+    chosen = topCandidates[Math.floor(rng() * topCandidates.length)];
+  } else {
+    chosen = candidates[0];
   }
 
-  return null;
+  return {
+    word,
+    clue: item.clue,
+    row: chosen.row,
+    col: chosen.col,
+    direction: chosen.direction
+  };
 }
 
 /**
