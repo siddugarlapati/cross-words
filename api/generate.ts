@@ -29,9 +29,9 @@ const PRIMARY_TEXT_MODEL  = process.env.GEMINI_TEXT_MODEL ?? 'gemini-flash-lates
 const FALLBACK_TEXT_MODEL = 'gemini-pro-latest';
 const SUPPORTED_MODELS    = [PRIMARY_TEXT_MODEL, FALLBACK_TEXT_MODEL];
 
-const MAX_CONCURRENT  = 10;
+const MAX_CONCURRENT  = 15;
 const CACHE_TTL_HOURS = 24;
-const REQUEST_TIMEOUT = 12_000;
+const REQUEST_TIMEOUT = 14_000;
 
 let activeRequests = 0;
 
@@ -61,6 +61,9 @@ class GeminiKeyPool {
       process.env.GEMINI_API_KEY_3,
       process.env.GEMINI_API_KEY_4,
       process.env.GEMINI_API_KEY_5,
+      process.env.GEMINI_API_KEY_6,
+      process.env.GEMINI_API_KEY_7,
+      process.env.GEMINI_API_KEY_8,
       process.env.GEMINI_API_KEYS,
       process.env.GEMINI_API_KEY,
     ];
@@ -341,7 +344,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     result = await Promise.race<CrosswordGenerationResult>([
       runPipeline(cleanTopic, content, questionsCount, fileData ?? undefined, requestId),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Generation timed out after 11.5s')), REQUEST_TIMEOUT)),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Generation timed out after 14s')), REQUEST_TIMEOUT)),
     ]);
   } catch (err: any) {
     activeRequests--;
