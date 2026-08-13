@@ -227,130 +227,77 @@ async function generateClues(words: string[], topic: string, u: TopicUnderstandi
   return list.map(i => ({ word: (i.word || '').toUpperCase().replace(/[^A-Z]/g, ''), clue: (i.clue || '').trim() }));
 }
 
-async function supervisorValidate(
-  pairs: { word: string; clue: string }[], topic: string, u: TopicUnderstanding, requestId = '', customKey?: string
-): Promise<{ valid: { word: string; clue: string }[]; rejected: { word: string; reason: string }[] }> {
-  const parts = [
-    `You are a strict academic supervisor. Review these concept-clue pairs for a university crossword on "${topic}" (${u.domain}).\n\n` +
-    `Pairs:\n${pairs.map(p => `Word: "${p.word}" | Clue: "${p.clue}"`).join('\n')}\n\n` +
-    `A pair PASSES only if ALL are true:\n` +
-    `1. The word is SPECIFIC to "${topic}" — not a generic academic term.\n` +
-    `2. The clue is academically accurate for this topic.\n` +
-    `3. The clue does NOT contain the word or any stem of it.\n` +
-    `4. The clue is between 10 and 120 characters.\n` +
-    `5. The word is NOT a generic placeholder (ANALYSIS, SYSTEM, METHOD, THEORY, etc.).\n\n` +
-    `Return ONLY raw JSON:\n[{"word":"KERNEL","pass":true,"reason":"Named OS component core to ${topic}"}, ...]`
+async function generateCrosswordFast(
+  topic: string,
+  content: string,
+  numQuestions: number,
+  fileData?: { data: string; mimeType: string },
+  requestId = '',
+  customKey?: string
+): Promise<{ word: string; clue: string }[]> {
+  const parts: any[] = [
+    `You are a university curriculum expert. Generate a high-quality educational crossword puzzle for university students on "${topic}".\n\n` +
+    `Requirements:\n` +
+    `1. Generate exactly ${numQuestions + 5} concrete concept & clue pairs.\n` +
+    `2. "word": 3–15 uppercase letters only (A-Z, no spaces/hyphens/numbers). Must be a concrete, specific term in "${topic}". No generic placeholder words.\n` +
+    `3. "clue": 10–120 characters, academic definition/question. Must NEVER reveal or contain the word itself.\n\n` +
+    `Return ONLY raw JSON array of objects:\n` +
+    `[{"word":"KERNEL","clue":"Core operating system component managing hardware and system calls."}]`
   ];
+  if (fileData) {
+    const b64 = fileData.data.split(',');
+    parts.push({ inlineData: { data: b64.length > 1 ? b64[1] : b64[0], mimeType: fileData.mimeType } });
+  } else if (content) {
+    parts.push(`\nStudy Materials:\n${content.substring(0, 3000)}`);
+  }
+
   const text = await callSDK(parts, requestId, customKey);
   const list: any[] = Array.isArray(parseJSON(text)) ? parseJSON(text) : [];
+  const validPairs: { word: string; clue: string }[] = [];
+  const seen = new Set<string>();
 
-  const valid: { word: string; clue: string }[]         = [];
-  const rejected: { word: string; reason: string }[]    = [];
-  for (const pair of pairs) {
-    const r = list.find((x: any) => (x.word || '').toUpperCase().replace(/[^A-Z]/g, '') === pair.word);
-    if (r?.pass === true) valid.push(pair);
-    else rejected.push({ word: pair.word, reason: r?.reason || 'Failed supervisor check' });
+  for (const item of list) {
+    const w = (item.word || '').toUpperCase().replace(/[^A-Z]/g, '');
+    const c = (item.clue || '').trim();
+    if (!w || w.length < 3 || w.length > 15 || seen.has(w)) continue;
+    if (!isClean(w)) continue;
+    if (!c || c.length < 10 || c.length > 120) continue;
+    const esc = w.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+    if (new RegExp(`\\b${esc}\\w*\\b`, 'i').test(c)) continue;
+
+    seen.add(w);
+    validPairs.push({ word: w, clue: c });
   }
-  return { valid, rejected };
+
+  return validPairs;
 }
 
-// ─── Full pipeline ─────────────────────────────────────────────────────────────
-
 async function runPipeline(
-  topic: string, content: string, numQuestions: number,
-  fileData?: { data: string; mimeType: string }, requestId = '', customKey?: string
+  topic: string,
+  content: string,
+  numQuestions: number,
+  fileData?: { data: string; mimeType: string },
+  requestId = '',
+  customKey?: string
 ): Promise<CrosswordGenerationResult> {
-  const rejected: { word: string; reason: string }[] = [];
-  const rawResponses: string[] = [];
+  console.log(`[${requestId}] Running fast single-pass generation pipeline for topic "${topic}"`);
+  const candidates = await generateCrosswordFast(topic, content, numQuestions, fileData, requestId, customKey);
 
-  // Stage 1
-  console.log(`[${requestId}] S1 understandTopic`);
-  const understanding = await understandTopic(topic, content, fileData, requestId, customKey);
-  rawResponses.push(`[S1] domain=${understanding.domain}`);
-
-  // Stage 2 — up to 2 pool attempts
-  let validWords: string[] = [];
-  const excludeWords: string[] = [];
-  for (let attempt = 1; attempt <= 2 && validWords.length < numQuestions + 5; attempt++) {
-    console.log(`[${requestId}] S2 generatePool attempt ${attempt}`);
-    const concepts = await generatePool(topic, content, understanding, numQuestions, excludeWords, fileData, requestId, customKey);
-    for (const c of concepts) {
-      if (!c.word || excludeWords.includes(c.word) || validWords.includes(c.word)) { rejected.push({ word: c.word, reason: 'Duplicate' }); continue; }
-      if (!isClean(c.word)) { rejected.push({ word: c.word, reason: 'Stop/generic word' }); excludeWords.push(c.word); continue; }
-      validWords.push(c.word);
-      excludeWords.push(c.word);
-    }
-  }
-  if (validWords.length < Math.min(numQuestions, 5))
-    throw new Error(`Could not generate enough topic-specific concepts for "${topic}". Try uploading course material.`);
-
-  // Stage 3 — embeddings + clues in parallel
-  console.log(`[${requestId}] S3 embeddings+clues`);
-  const pool = validWords.slice(0, (numQuestions + 5) * 2);
-  const [embedResults, rawClues] = await Promise.all([
-    fetchEmbeddingsSDK([topic, ...pool], requestId, customKey),
-    generateClues(pool, topic, understanding, requestId, customKey),
-  ]);
-
-  const semanticPass = new Set<string>();
-  if (embedResults && embedResults[0]) {
-    const topicVec = embedResults[0];
-    pool.forEach((word, i) => {
-      const sim = cosineSim(topicVec, embedResults[i + 1]);
-      if (sim >= SIMILARITY_THRESH) semanticPass.add(word);
-      else rejected.push({ word, reason: `sim=${sim.toFixed(2)} < ${SIMILARITY_THRESH}` });
-    });
-  } else {
-    pool.forEach(w => semanticPass.add(w));
+  if (candidates.length < Math.min(numQuestions, 3)) {
+    throw new Error(`Could not generate enough valid terms for "${topic}". Try a more specific topic or upload study material.`);
   }
 
-  const clueMap = new Map<string, string>();
-  for (const pair of rawClues) {
-    if (!pair.word || !pair.clue || !semanticPass.has(pair.word)) continue;
-    if (pair.clue.length < 10 || pair.clue.length > 120) { rejected.push({ word: pair.word, reason: `clue length ${pair.clue.length}` }); continue; }
-    const esc = pair.word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
-    if (new RegExp(`\\b${esc}\\w*\\b`, 'i').test(pair.clue)) { rejected.push({ word: pair.word, reason: 'Clue contains word' }); continue; }
-    clueMap.set(pair.word, pair.clue);
-  }
-
-  let candidates = Array.from(clueMap.entries()).map(([word, clue]) => ({ word, clue }));
-  if (candidates.length < numQuestions)
-    throw new Error(`Only ${candidates.length}/${numQuestions} clues passed validation for "${topic}". Upload course material for better results.`);
-
-  // Stage 4 — supervisor
-  console.log(`[${requestId}] S4 supervisorValidate`);
-  const sv = await supervisorValidate(candidates, topic, understanding, requestId, customKey);
-  for (const r of sv.rejected) rejected.push(r);
-  let finalPairs = sv.valid;
-
-  // One reregen pass if supervisor rejected too many
-  if (finalPairs.length < numQuestions) {
-    const rejectSet  = new Set(sv.rejected.map(r => r.word));
-    const regenWords = await generatePool(topic, content, understanding, numQuestions - finalPairs.length + 3, [...excludeWords, ...Array.from(rejectSet)], fileData, requestId, customKey);
-    const validRegen = regenWords.map(c => c.word).filter(w => w && isClean(w));
-    if (validRegen.length > 0) {
-      const regenClues = await generateClues(validRegen, topic, understanding, requestId, customKey);
-      const cleanRegen = regenClues.filter(p => p.word && p.clue && p.clue.length >= 10 && p.clue.length <= 120);
-      const svRegen    = await supervisorValidate(cleanRegen, topic, understanding, requestId, customKey);
-      for (const r of svRegen.rejected) rejected.push(r);
-      finalPairs = [...finalPairs, ...svRegen.valid];
-    }
-  }
-
-  if (finalPairs.length < Math.min(numQuestions, 5))
-    throw new Error(`Could not generate enough verified topic-specific concepts for "${topic}" after supervisor validation. Upload course material.`);
-
-  // Layout
   console.log(`[${requestId}] Layout generation`);
-  const placed = generateLayout(finalPairs, numQuestions);
-  if (placed.length < Math.min(numQuestions, 3))
+  const placed = generateLayout(candidates, numQuestions);
+  if (placed.length < Math.min(numQuestions, 3)) {
     throw new Error(`Could only place ${placed.length}/${numQuestions} words in the grid. Try a different topic or word count.`);
+  }
 
   return {
     title: topic,
     subject: topic,
     questions: placed,
-    generationLogs: { topic, rawResponses, filteredConcepts: validWords, rejectedConcepts: rejected, finalConcepts: finalPairs },
+    generationLogs: { topic, rawResponses: [], filteredConcepts: candidates.map(c => c.word), rejectedConcepts: [], finalConcepts: candidates },
   };
 }
 
