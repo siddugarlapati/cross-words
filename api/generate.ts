@@ -340,7 +340,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     result = await Promise.race<CrosswordGenerationResult>([
       runPipeline(cleanTopic, content, questionsCount, fileData ?? undefined, requestId),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Generation timed out after 55s')), REQUEST_TIMEOUT)),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Generation timed out after 11.5s')), REQUEST_TIMEOUT)),
     ]);
   } catch (err: any) {
     activeRequests--;
