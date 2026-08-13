@@ -210,7 +210,7 @@ async function generateCrosswordFast(
   const parts: any[] = [
     `You are an expert university curriculum generator. Generate a high-quality educational crossword puzzle for university students studying "${topic}".\n\n` +
     `Requirements:\n` +
-    `1. Generate exactly ${numQuestions + 5} concrete concept & clue pairs.\n` +
+    `1. Generate at least ${Math.max(numQuestions * 3, 15)} concrete technical concept & clue pairs.\n` +
     `2. "word": 3–15 uppercase letters only (A-Z, no spaces/hyphens/numbers). Must be a concrete, specific technical or academic term directly related to "${topic}". No generic placeholder words.\n` +
     `3. "clue": 10–120 characters, academic definition/question. Must NEVER reveal or contain the word itself or any stem of it.\n\n` +
     `Return ONLY raw JSON array of objects following this exact schema format:\n` +
