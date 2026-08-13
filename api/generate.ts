@@ -55,15 +55,23 @@ class GeminiKeyPool {
   }
 
   public refreshKeys(): void {
-    const rawKeys = (
-      process.env.GEMINI_API_KEYS ??
-      process.env.GEMINI_API_KEY ??
-      process.env.VITE_GEMINI_API_KEY ??
-      ''
-    )
-      .split(',')
-      .map(k => k.trim())
-      .filter(Boolean);
+    const envKeys = [
+      process.env.GEMINI_API_KEY_1,
+      process.env.GEMINI_API_KEY_2,
+      process.env.GEMINI_API_KEY_3,
+      process.env.GEMINI_API_KEY_4,
+      process.env.GEMINI_API_KEY_5,
+      process.env.GEMINI_API_KEYS,
+      process.env.GEMINI_API_KEY,
+    ];
+    const rawKeys: string[] = [];
+    for (const entry of envKeys) {
+      if (!entry) continue;
+      entry.split(',').forEach(k => {
+        const trimmed = k.trim();
+        if (trimmed && !trimmed.startsWith('VITE_')) rawKeys.push(trimmed);
+      });
+    }
 
     const uniqueKeys = Array.from(new Set(rawKeys));
     this.keys = uniqueKeys.map(key => ({ key, cooldownUntil: 0 }));
