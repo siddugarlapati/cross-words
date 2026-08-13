@@ -17,8 +17,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
-import { generateLayout } from './layoutGenerator';
-import type { CrosswordGenerationResult } from './types';
+import { generateLayout } from './_layoutGenerator';
+import type { CrosswordGenerationResult } from './_types';
 
 // ─── Configuration ─────────────────────────────────────────────────────────────
 

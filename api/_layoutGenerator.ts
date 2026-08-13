@@ -1,4 +1,4 @@
-import { Direction } from './types';
+import { Direction } from './_types';
 
 export interface WordItem {
   word: string;
