@@ -145,7 +145,7 @@ const GENERIC_WORDS = new Set([
   'TECHNIQUE','MECHANISM','STRUCTURE','FUNCTION','ELEMENT','FACTOR','ASPECT','FEATURE',
   'PROPERTY','ATTRIBUTE','PARAMETER','DEFINITION','EXAMPLE','OVERVIEW','SUMMARY',
   'INTRODUCTION','CONCLUSION','SECTION','CHAPTER','TOPIC','SUBJECT','STUDY','RESEARCH',
-  'REVIEW','MODEL','FRAMEWORK','PATTERN','PRINCIPLE','STRATEGY','SOLUTION','RESULT',
+  'REVIEW','FRAMEWORK','PATTERN','PRINCIPLE','STRATEGY','SOLUTION','RESULT',
   'OUTPUT','INPUT','OBJECT','CLASS','MODULE','PACKAGE','OPERATION','PROCEDURE',
   'PROGRAM','APPLICATION','SOFTWARE','HARDWARE','IMPLEMENTATION','DESIGN','ARCHITECTURE',
   'INTERFACE','PROTOCOL','PERFORMANCE','EFFICIENCY','ACCURACY','QUALITY','STANDARD',
@@ -213,7 +213,7 @@ async function generateCrosswordFast(
     `Requirements:\n` +
     `1. Generate at least ${Math.max(numQuestions * 3, 15)} concrete single-word technical terms & clue pairs.\n` +
     `2. "word": Single word only (A-Z, 3–15 uppercase letters, no spaces/hyphens/numbers). Must be a concrete, specific technical term directly related to "${topic}".\n` +
-    `3. "clue": 10–120 characters, academic definition/question. Must NEVER reveal or contain the word itself or any stem of it.\n\n` +
+    `3. "clue": 10–120 characters, academic definition/question. Crucial: The clue text MUST NOT mention or contain the target word itself or any stem of it.\n\n` +
     `Return ONLY raw JSON array of objects following this exact schema format:\n` +
     `[{"word":"<TOPIC-SPECIFIC-TERM>","clue":"<ACCURATE-CLUE-FOR-TERM>"}]`
   ];
